@@ -1,23 +1,33 @@
-# Fret_SNCF
+# **fret-sncf** Project
 
-# Contexte
+## **Introduction**
 
-DEB travaille sur les trains d'arrivee
-FOR & DEP travaillent sur les trains de depart
+This is the **fret-sncf** project.
 
-# Variables de décision
+## **Prerequisites**
 
-m = machine [DEB,FOR,DEP]
-t = train = [ta, td]
-ta = train arrivee = [1,2,3...]: DEB
-td = train de depart = [8,9,10,...] : FOR & DEP
-h = temps (en minute pour 7 jours) = [range(0,1400*7)]
-w = wagon, associé a 2 trains
+Before you begin, make sure you have the following installed on your machine:
 
-m_t_h = 1 si la machine travaille sur le train t au temps h, 0 sinon.
+- **Poetry**  
+  To install Poetry, you can use the following command:
 
-# Contraintes
+  ```bash
+  curl -sSL https://install.python-poetry.org | python3 -
+  ```
 
-Pour ta en FOR, on doit avoir les wagons d'un td deja passe en DEB.
+- **Install**
+  Use Poetry to install the project dependencies, including numpy, matplotlib, and gurobipy.
+  This will also create a virtual environment automatically.
 
-# Fonction objectif
+Run the following command:
+
+```bash
+  poetry install
+```
+
+- **Activate the Poetry Virtual Environment**
+  Once the dependencies are installed, you can activate the Poetry virtual environment by running:
+
+```bash
+poetry shell
+```
