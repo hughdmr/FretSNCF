@@ -1,0 +1,15 @@
+\ Model optimisation_copy
+\ LP format - for model browsing. Use MPS format to capture full model detail.
+\ Signature: 0x9cf55149216c47c5
+Minimize
+ 
+Subject To
+ R3699: 10000 f[DEP,400014,11267,1] + c[DEP,400014,11267] >= 10380.5
+ R3706: 10000 f[DEP,400014,11267,1] + c[DEP,400014,11267] <= 9999.5
+Bounds
+ c[DEP,400014,11267] free
+Binaries
+ f[DEP,400014,11267,1]
+Generals
+ c[DEP,400014,11267]
+End
