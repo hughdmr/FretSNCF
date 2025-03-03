@@ -2,17 +2,17 @@ from gurobipy import Model, GRB
 import pandas as pd
 from utils_donnees import charger_valeurs, process_trains, temps_indispo, trains_requis, minute_to_datetime_df
 
-def creer_modele():
+def creer_modele(fichier):
 
     # Charger les données
-    fichier = 'instance_WPY_realiste_jalon1.xlsx'
     chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df, j1, jours = charger_valeurs(fichier)
     trains, trains_arr, trains_dep, minutes, machines = process_trains(sillons_arrivee_df, sillons_depart_df, j1, jours)
-    unavailable_periods = temps_indispo(machines_df, jours)
+    unavailable_periods, start_times = temps_indispo(machines_df, jours)
     trains_requis_dict = trains_requis(trains_dep, trains_arr, correspondances_df, j1)
 
 
     print('Donnees chargees')
+
 
 
     # Cree un modele
@@ -26,77 +26,96 @@ def creer_modele():
     c = model.addVars(trains_dep, lb=0, ub=max(minutes), vtype=GRB.INTEGER, name="c")
 
     # Definir les variables binaires
-    d = model.addVars(trains_arr, 2, vtype=GRB.BINARY, name="d")
-    e = model.addVars(trains_dep, 2, vtype=GRB.BINARY, name="e")
-    f = model.addVars(trains_dep, 2, vtype=GRB.BINARY, name="f")
-    g = model.addVars(trains_arr, vtype=GRB.BINARY, name="g")
-    k = model.addVars(trains_dep, vtype=GRB.BINARY, name="h")
-    l = model.addVars(trains_dep, vtype=GRB.BINARY, name="i")
+    d = model.addVars(trains_arr, 2, start_times, vtype=GRB.BINARY, name="d")
+    e = model.addVars(trains_dep, 2, start_times, vtype=GRB.BINARY, name="e")
+    f = model.addVars(trains_dep, 2, start_times, vtype=GRB.BINARY, name="f")
+
+    g_before = model.addVars(trains_arr, trains_arr, range(15), vtype=GRB.BINARY, name="g_before")
+    g_after = model.addVars(trains_arr, trains_arr, range(15), vtype=GRB.BINARY, name="g_after")
+
+    k_before = model.addVars(trains_dep, trains_dep, range(15), vtype=GRB.BINARY, name="k_before")
+    k_after = model.addVars(trains_dep, trains_dep, range(15), vtype=GRB.BINARY, name="k_after")
+
+    l_before = model.addVars(trains_dep, trains_dep, range(15), vtype=GRB.BINARY, name="l_before")
+    l_after = model.addVars(trains_dep, trains_dep, range(15), vtype=GRB.BINARY, name="l_after")
 
     print('Variables definies')
     
     # Contrainte 1: Periodes d'indisponibilite
-    epsilon = 1
+    M = 10000
+    epsilon = 0.5
+
     for machine, periods in unavailable_periods.items():
-        for (start_time, end_time) in periods:
-            for t in trains:
-                # Constraints for start_time[0] to end_time[0]
-                for h in range(start_time[0], end_time[0]):
-                    if t[0] == 'ARR' and machine == 'DEB':
-                        model.addGenConstrIndicator(d[t[0],t[1],t[2],0], 0, a[t[0],t[1],t[2]] <= h - epsilon)
-                        model.addGenConstrIndicator(d[t[0],t[1],t[2],0], 0, a[t[0],t[1],t[2]] >= h + epsilon)
-                    elif t[0] == 'DEP' and machine == 'FOR':
-                        model.addGenConstrIndicator(e[t[0],t[1],t[2],0], 0, b[t[0],t[1],t[2]] <= h - epsilon)
-                        model.addGenConstrIndicator(e[t[0],t[1],t[2],0], 0, b[t[0],t[1],t[2]] >= h + epsilon)
-                    elif t[0] == 'DEP' and machine == 'DEG':
-                        model.addGenConstrIndicator(f[t[0],t[1],t[2],0], 0, c[t[0],t[1],t[2]] <= h - epsilon)
-                        model.addGenConstrIndicator(f[t[0],t[1],t[2],0], 0, c[t[0],t[1],t[2]] >= h + epsilon)
-                
-                # Constraints for start_time[1] to end_time[1]
-                for h in range(start_time[1], end_time[1]):
-                    if t[0] == 'ARR' and machine == 'DEB':
-                        model.addGenConstrIndicator(d[t[0],t[1],t[2],1], 0, a[t[0],t[1],t[2]] <= h - epsilon)
-                        model.addGenConstrIndicator(d[t[0],t[1],t[2],1], 0, a[t[0],t[1],t[2]] >= h + epsilon)
-                    elif t[0] == 'DEP' and machine == 'FOR':
-                        model.addGenConstrIndicator(e[t[0],t[1],t[2],1], 0, b[t[0],t[1],t[2]] <= h - epsilon)
-                        model.addGenConstrIndicator(e[t[0],t[1],t[2],1], 0, b[t[0],t[1],t[2]] >= h + epsilon)
-                    elif t[0] == 'DEP' and machine == 'DEG':
-                        model.addGenConstrIndicator(f[t[0],t[1],t[2],1], 0, c[t[0],t[1],t[2]] <= h - epsilon)
-                        model.addGenConstrIndicator(f[t[0],t[1],t[2],1], 0, c[t[0],t[1],t[2]] >= h + epsilon)
+        for (start_time, end_time) in periods:        
+            # Loop through trains only once per unavailable period
+            for t in trains: 
+                if t[0] == 'ARR' and machine == 'DEB':
+                    model.addConstr(a[t[0], t[1], t[2]] <= start_time[0] - epsilon + M * (1 - d[t[0], t[1], t[2], 0, start_time[0]]))
+                    model.addConstr(a[t[0], t[1], t[2]] >= end_time[0] + epsilon - M * d[t[0], t[1], t[2], 0, start_time[0]])
+                    if start_time[1] != 0:
+                        model.addConstr(a[t[0], t[1], t[2]] <= start_time[1] - epsilon + M * (1 - d[t[0], t[1], t[2], 1,start_time[1]]))
+                        model.addConstr(a[t[0], t[1], t[2]] >= end_time[1] + epsilon - M * d[t[0], t[1], t[2], 1,start_time[1]])
+                elif t[0] == 'DEP' and machine == 'FOR':
+                    model.addConstr(b[t[0], t[1], t[2]] <= start_time[0] - epsilon + M * (1 - e[t[0], t[1], t[2], 0, start_time[0]]))
+                    model.addConstr(b[t[0], t[1], t[2]] >= end_time[0] + epsilon - M * e[t[0], t[1], t[2], 0, start_time[0]])
+                    if start_time[1] != 0:
+                        model.addConstr(b[t[0], t[1], t[2]] <= start_time[1] - epsilon + M * (1 - e[t[0], t[1], t[2], 1,start_time[1]]))
+                        model.addConstr(b[t[0], t[1], t[2]] >= end_time[1] + epsilon - M * e[t[0], t[1], t[2], 1,start_time[1]])
+                elif t[0] == 'DEP' and machine == 'DEG':
+                    model.addConstr(c[t[0], t[1], t[2]] <= start_time[0] - epsilon + M * (1 - f[t[0], t[1], t[2], 0, start_time[0]]))
+                    model.addConstr(c[t[0], t[1], t[2]] >= end_time[0] + epsilon - M * f[t[0], t[1], t[2], 0, start_time[0]])
+                    if start_time[1] != 0:
+                        model.addConstr(c[t[0], t[1], t[2]] <= start_time[1] - epsilon + M * (1 - f[t[0], t[1], t[2], 1,start_time[1]]))
+                        model.addConstr(c[t[0], t[1], t[2]] >= end_time[1] + epsilon - M * f[t[0], t[1], t[2], 1,start_time[1]])
 
     print('Contrainte 1 definie')
 
     # Contrainte 2: Chaque machine ne peut traiter qu'un train a la fois
     for machine in machines:
-        for train in trains:
-            for train2 in trains:
-                if train != train2:
-                    for time in range(15):  # Ensure valid values of t
-                        if train[0] == 'ARR' and train2[0] == 'ARR' and machine == 'DEB':
-                            model.addGenConstrIndicator(g[train[0],train[1],train[2]], 0, a[train[0],train[1],train[2]] <= a[train2[0],train2[1],train2[2]] - time - epsilon)
-                            model.addGenConstrIndicator(g[train[0],train[1],train[2]], 0, a[train[0],train[1],train[2]] >= a[train2[0],train2[1],train2[2]] + time + epsilon)
-                        elif train[0] == 'DEP' and train2[0] == 'DEP' and machine == 'FOR':
-                            model.addGenConstrIndicator(k[train[0],train[1],train[2]], 0, b[train[0],train[1],train[2]] <= b[train2[0],train2[1],train2[2]] - time - epsilon)
-                            model.addGenConstrIndicator(k[train[0],train[1],train[2]], 0, b[train[0],train[1],train[2]] >= b[train2[0],train2[1],train2[2]] + time + epsilon)
-                        elif train[0] == 'DEP' and train2[0] == 'DEP' and machine == 'DEG':
-                            model.addGenConstrIndicator(l[train[0],train[1],train[2]], 0, c[train[0],train[1],train[2]] <= c[train2[0],train2[1],train2[2]] - time - epsilon)
-                            model.addGenConstrIndicator(l[train[0],train[1],train[2]], 0, c[train[0],train[1],train[2]] >= c[train2[0],train2[1],train2[2]] + time + epsilon)
-    
+        for i in range(len(trains)):
+            for j in range(i + 1, len(trains)):
+                train = trains[i]
+                train2 = trains[j]
+                for time in [0,14]:  
+                    if train[0] == 'ARR' and train2[0] == 'ARR' and machine == 'DEB':
+                        # Train1 before Train2
+                        model.addConstr(a[train[0], train[1], train[2]] <= a[train2[0], train2[1], train2[2]] - time - epsilon + M * (1 - g_before[train[0], train[1], train[2], train2[0], train2[1], train2[2], time])) 
+                        # Train1 after Train2
+                        model.addConstr(a[train[0], train[1], train[2]] >= a[train2[0], train2[1], train2[2]] + time + epsilon - M * (1 - g_after[train[0], train[1], train[2], train2[0], train2[1], train2[2], time]))
+                        # Ensure either before or after
+                        model.addConstr(g_before[train[0], train[1], train[2], train2[0], train2[1], train2[2], time] + g_after[train[0], train[1], train[2], train2[0], train2[1], train2[2], time] == 1)
+
+                    elif train[0] == 'DEP' and train2[0] == 'DEP' and machine == 'FOR':
+                        # Train1 before Train2
+                        model.addConstr(b[train[0], train[1], train[2]] <= b[train2[0], train2[1], train2[2]] - time - epsilon + M * (1 - k_before[train[0], train[1], train[2], train2[0], train2[1], train2[2], time])) 
+                        # Train1 after Train2
+                        model.addConstr(b[train[0], train[1], train[2]] >= b[train2[0], train2[1], train2[2]] + time + epsilon - M * (1 - k_after[train[0], train[1], train[2], train2[0], train2[1], train2[2], time]))
+                        # Ensure either before or after
+                        model.addConstr(k_before[train[0], train[1], train[2], train2[0], train2[1], train2[2], time] + k_after[train[0], train[1], train[2], train2[0], train2[1], train2[2], time] == 1)
+
+                    elif train[0] == 'DEP' and train2[0] == 'DEP' and machine == 'DEG':
+                        # Train1 before Train2
+                        model.addConstr(c[train[0], train[1], train[2]] <= c[train2[0], train2[1], train2[2]] - time - epsilon + M * (1 - l_before[train[0], train[1], train[2], train2[0], train2[1], train2[2], time])) 
+                        # Train1 after Train2
+                        model.addConstr(c[train[0], train[1], train[2]] >= c[train2[0], train2[1], train2[2]] + time + epsilon - M * (1 - l_after[train[0], train[1], train[2], train2[0], train2[1], train2[2], time]))
+                        # Ensure either before or after
+                        model.addConstr(l_before[train[0], train[1], train[2], train2[0], train2[1], train2[2], time] + l_after[train[0], train[1], train[2], train2[0], train2[1], train2[2], time] == 1)
+        
     print('Contrainte 2 definie')
 
     # Contrainte 3: la machine 'DEB' ne peut pas être utilisée dans les 60 minutes suivant l'heure d'arrivée du train
     for train in trains:
         if train[0] == 'ARR':  # Check if the train type is 'ARR'
             arrival_minute = train[2]
-            model.addConstr(a[train[0],train[1],train[2]] >= arrival_minute + 60, name=f"constraint_DEB_{t[1]}")
+            model.addConstr(a[train[0],train[1],train[2]] >= arrival_minute + 60, name=f"constraint_DEB_{train[1]}")
     
     print('Contrainte 3 definie')
 
     # Contrainte 4: la machine 'DEG' doit être utilisée avant 35 minutes avant le départ du train de type 'DEP'
     for train in trains:
         if train[0] == 'DEP':  # Check if the train type is 'DEP'
-            departure_minute = t[2]
-            model.addConstr(c[train[0],train[1],train[2]] <= departure_minute - 35, name=f"constraint_DEG_{t[1]}")
+            departure_minute = train[2]        
+            model.addConstr(c[train[0],train[1],train[2]] <= departure_minute - 35, name=f"constraint_DEG_{train[1]}")
     
     print('Contrainte 4 definie')
 
@@ -109,7 +128,7 @@ def creer_modele():
 
     # Contrainte 6: la machine 'FOR' doit être utilisée avant 165 minutes avant machine 'DEG'
     for train in trains_dep:
-        model.addConstr(c[train[0],train[1],train[2]] >= b[train[0],train[1],train[2]] + 165, name=f"constraint_DEG_FOR_{t[1]}")
+        model.addConstr(c[train[0],train[1],train[2]] >= b[train[0],train[1],train[2]] + 165, name=f"constraint_DEG_FOR_{train[1]}")
 
     print('Contrainte 6 definie, optimisation en cours...')
 
@@ -143,3 +162,5 @@ def creer_modele():
         print("Aucune solution optimale trouvée.")
 
     print('Modele resolu')
+
+    return df_reordered
