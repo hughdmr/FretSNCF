@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
+import pandas as pd
 
 def time_to_minutes(day_of_week, time_str, total_jours):
     # Convert the day of the week to an integer (0 = Monday, 6 = Sunday)
@@ -18,15 +19,22 @@ def time_to_minutes(day_of_week, time_str, total_jours):
     return [total_minutes, total_minutes2]
 
 def time_to_minutes_2(date_str, time_str, jour1):
-    # Convert the date part to a datetime object
-    date_obj = datetime.strptime(date_str.strip(), "%d/%m/%Y")
+    if type(date_str) == str:
+        # Convert the date part to a datetime object
+        date_obj = datetime.strptime(date_str.strip(), "%d/%m/%Y")
+    elif type(date_str) == datetime or type(date_str) == pd._libs.tslibs.timestamps.Timestamp:
+        date_obj = date_str
+    
     
     # Get the day of the week (0 = Monday, 6 = Sunday...jusqu'à finir le total des jours)
     day_diff = date_obj- jour1
     number_day = day_diff.days
     
-    # Convert the time part to a datetime object
-    time_obj = datetime.strptime(time_str.strip(), "%H:%M")
+    if type(time_str) == str:
+        # Convert the time part to a datetime object
+        time_obj = datetime.strptime(time_str.strip(), "%H:%M")
+    elif type(time_str) == time:
+        time_obj = time_str
     
     # Calculate the total minutes
     total_minutes = number_day * 24 * 60 + time_obj.hour * 60 + time_obj.minute
