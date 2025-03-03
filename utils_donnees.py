@@ -58,7 +58,16 @@ def temps_indispo(machines_df, jours):
                 end_time = time_to_minutes(day_of_week, time_str.split('-')[1], jours)
                 unavailable_periods[machine].append((start_time, end_time))
 
-    return unavailable_periods
+
+    start_times =[]
+    for machine, periods in unavailable_periods.items():
+        for (start_time, end_time) in periods:
+            start_times.append(start_time[0])
+            if start_time[1] != 0:
+                start_times.append(start_time[1])
+        break
+
+    return unavailable_periods, start_times
 
 def trains_requis(trains_dep, trains_arr, correspondances_df, j1):
     # Create the dictionary

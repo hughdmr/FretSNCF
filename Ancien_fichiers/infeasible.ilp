@@ -1,0 +1,12 @@
+\ Model optimisation_copy
+\ LP format - for model browsing. Use MPS format to capture full model detail.
+\ Signature: 0xd8241660b71b7b9a
+Minimize
+ 
+Subject To
+ constraint_DEB_431113: a[ARR,412202,1248] >= 13680
+Bounds
+ -infinity <= a[ARR,412202,1248] <= 12959
+Generals
+ a[ARR,412202,1248]
+End
