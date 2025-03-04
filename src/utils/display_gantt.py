@@ -26,7 +26,7 @@ def get_resource_name(task_type, task_date):
 
 if __name__ == "__main__":
     # result_directory_path = r"./"
-    result_file_path = "outputs/results/resultats_instance_WPY_realiste_jalon1.xlsx.xlsx"
+    result_file_path = "outputs/results/resultats_instance_WPY_realiste_jalon1.xlsx"
     # result_file_path = os.path.join(result_directory_path, result_file_name)
 
     result_df = pd.read_excel(result_file_path, sheet_name=MACHINE_TASKS_SHEET)
