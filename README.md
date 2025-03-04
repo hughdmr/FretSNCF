@@ -17,10 +17,11 @@ In this project, we aim to model the management of a freight classification yard
 ## **Repository structure**
 
 - The folder `data/`contains the instances (already uploaded in the folder)
-- The folder `outputs/`contains some of the outputs of the python scripts
+- The folder `outputs/`contains some of the outputs of the python scripts (models and tables)
 - The folder `src/`contains the code with:
   - `notebooks/`: some notebooks for test
   - `utils/`: utils functions used in the creation of the models
+  - `main.py`and `create_model.py`to create the model (jalon1).
 - The poetry files to install a python virtual environment (cf Prerequisites)
 - `.gitignore`and `README.md`
 
