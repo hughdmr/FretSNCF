@@ -1,6 +1,6 @@
 from gurobipy import Model, GRB
 import pandas as pd
-from utils_donnees import charger_valeurs, process_trains, temps_indispo, trains_requis, minute_to_datetime_df
+from src.utils.utils_donnees import charger_valeurs, process_trains, temps_indispo, trains_requis, minute_to_datetime_df
 
 def creer_modele(fichier):
 
