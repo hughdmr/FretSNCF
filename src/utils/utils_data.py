@@ -1,10 +1,9 @@
 import pandas as pd
 from datetime import datetime
-from utils.utils_horaires import time_to_minutes_2, time_to_minutes, minute_to_jour, minute_to_jour2
+from src.utils.utils_date import time_to_minutes_2, time_to_minutes, minute_to_date, minute_to_date2
 
-
-
-def charger_donnees(fichier):
+def load_data(fichier):
+    """Load the data from the Excel file"""
     chantiers_df = pd.read_excel(fichier, sheet_name='Chantiers')
     machines_df = pd.read_excel(fichier, sheet_name='Machines')
     sillons_arrivee_df = pd.read_excel(fichier, sheet_name='Sillons arrivee')
@@ -12,7 +11,8 @@ def charger_donnees(fichier):
     correspondances_df = pd.read_excel(fichier, sheet_name='Correspondances')
     return chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df
 
-def trouver_jours(sillons_depart_df,sillons_arrivee_df):
+def calculate_delta_days(sillons_depart_df,sillons_arrivee_df):
+    """Calculate the number of days between the first and last event"""
     max_jour = sillons_depart_df['JDEP'].agg(['max'])['max']
     min_jour = sillons_arrivee_df['JARR'].agg(['min'])['min']
 
@@ -29,13 +29,14 @@ def trouver_jours(sillons_depart_df,sillons_arrivee_df):
     jours = diff.days
     return j1, jours
 
-def charger_valeurs(fichier):
-    chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df = charger_donnees(fichier)
-    j1, jours = trouver_jours(sillons_depart_df,sillons_arrivee_df)
+def add_time_reference(fichier):
+    """Add the time reference to the data"""
+    chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df = load_data(fichier)
+    j1, jours = calculate_delta_days(sillons_depart_df,sillons_arrivee_df)
     return chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df, j1, jours
 
-
-def process_trains(machines_df, sillons_arrivee_df, sillons_depart_df, j1, jours):
+def format_trains(machines_df, sillons_arrivee_df, sillons_depart_df, j1, jours):
+    """Process the trains data and create the list of trains with their arrival and departure times"""
     machines = ['DEB', 'FOR', 'DEG']
     machines_durees = machines_df['Duree '].to_list()
     trains_arr = []
@@ -50,9 +51,9 @@ def process_trains(machines_df, sillons_arrivee_df, sillons_depart_df, j1, jours
     minutes = list(range(0, 24 * 60 * (jours+1)))
     return trains, trains_arr, trains_dep, minutes, machines, machines_durees
 
-def temps_indispo(machines_df, jours):
-    # Precompute unavailable time periods
-    unavailable_periods = {}  # Dict to store unavailable periods for each machine
+def unavailable_machines(machines_df, jours):
+    """Process the unavailable periods for each machine"""
+    unavailable_periods = {}
     for _, row in machines_df.iterrows():
         machine = row['Machine']
         unavailable_times = row['Indisponibilites']
@@ -78,15 +79,15 @@ def temps_indispo(machines_df, jours):
 
     return unavailable_periods, start_times
 
-def trains_requis(trains_dep, trains_arr, correspondances_df, j1):
-    # Create the dictionary
+def correspondance_for_depart(trains_dep, trains_arr, correspondances_df, j1):
+    """Find the required arrived trains for each departed train"""
     trains_requis_dict = {}
     for train in trains_dep:
         tous_trains = []
         for _, row in correspondances_df.iterrows():
-            if row['n°Train depart'] == train[1] and row['Jour depart'] == minute_to_jour(train[2], j1):
+            if row['n°Train depart'] == train[1] and row['Jour depart'] == minute_to_date(train[2], j1):
                 for train_arr in trains_arr:
-                    if row['n°Train arrivee'] == train_arr[1] and row['Jour arrivee'] == minute_to_jour(train_arr[2], j1):
+                    if row['n°Train arrivee'] == train_arr[1] and row['Jour arrivee'] == minute_to_date(train_arr[2], j1):
                         if train_arr not in tous_trains:
                             tous_trains.append(train_arr)
         trains_requis_dict[train] = tous_trains
