@@ -1,12 +1,13 @@
 from gurobipy import Model, GRB
 import pandas as pd
-from utils.utils_data import load_data, format_trains, unavailable_machines, correspondance_for_depart
+from utils.utils_data import format_trains, add_time_reference, unavailable_machines, correspondance_for_depart
 from utils.utils_date import minute_to_date2
+from pathlib import Path
 
 def creer_modele(fichier):
 
     # Charger les données
-    chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df, j1, jours = load_data(fichier)
+    chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df, j1, jours = add_time_reference(fichier)
     trains, trains_arr, trains_dep, minutes, machines, machines_durees = format_trains(machines_df, sillons_arrivee_df, sillons_depart_df, j1, jours)
     unavailable_periods, start_times = unavailable_machines(machines_df, jours)
     trains_requis_dict = correspondance_for_depart(trains_dep, trains_arr, correspondances_df, j1)
@@ -138,6 +139,9 @@ def creer_modele(fichier):
 
     # Résolution du problème
     model.optimize()
+    
+    # Sauvegarder le modèle
+    model.write("outputs/models/jalon1.lp")
 
     # Afficher les résultats
     if model.status == GRB.OPTIMAL:
