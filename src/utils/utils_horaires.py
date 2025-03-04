@@ -2,13 +2,13 @@ from datetime import datetime, timedelta, time
 import pandas as pd
 
 def time_to_minutes(day_of_week, time_str, total_jours):
+    """Convert the time to minutes depending of the week, same as the 2nd function"""
     # Convert the day of the week to an integer (0 = Monday, 6 = Sunday)
     day_of_week = int(day_of_week)-1
     if day_of_week + 7 < total_jours:
         day_of_week2 = day_of_week + 7
     else:
         day_of_week2 = day_of_week
-    # Convert the time part to a datetime object
     time_obj = datetime.strptime(time_str.strip(), "%H:%M")
     
     # Calculate the total minutes
@@ -19,12 +19,11 @@ def time_to_minutes(day_of_week, time_str, total_jours):
     return [total_minutes, total_minutes2]
 
 def time_to_minutes_2(date_str, time_str, jour1):
+    """Convert the time to minutes"""
     if type(date_str) == str:
-        # Convert the date part to a datetime object
         date_obj = datetime.strptime(date_str.strip(), "%d/%m/%Y")
     elif type(date_str) == datetime or type(date_str) == pd._libs.tslibs.timestamps.Timestamp:
         date_obj = date_str
-    
     
     # Get the day of the week (0 = Monday, 6 = Sunday...jusqu'à finir le total des jours)
     day_diff = date_obj- jour1
