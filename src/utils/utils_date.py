@@ -30,30 +30,25 @@ def time_to_minutes_2(date_str, time_str, jour1):
     number_day = day_diff.days
     
     if type(time_str) == str:
-        # Convert the time part to a datetime object
         time_obj = datetime.strptime(time_str.strip(), "%H:%M")
     elif type(time_str) == time:
         time_obj = time_str
     
-    # Calculate the total minutes
     total_minutes = number_day * 24 * 60 + time_obj.hour * 60 + time_obj.minute
     return total_minutes
 
-def minute_to_jour(minutes, jour1):
+def minute_to_date(minutes, jour1):
+    """Convert the minutes to a date"""
     jour = jour1 + timedelta(minutes//(24*60))
-    # Format the date to "dd/mm/yyyy"
     date_str = jour.strftime("%d/%m/%Y")
     
     return date_str
 
-def minute_to_jour2(minutes, jour1):
-    # Add the minutes to the initial date
+def minute_to_date2(minutes, jour1):
+    """Convert the minutes to a date"""
     jour = jour1 + timedelta(minutes=minutes)
     
-    # Format the date to "dd/mm/yyyy"
     date_str = jour.strftime("%d/%m/%Y")
-    
-    # Format the time to "HH:MM"
     time_str = jour.strftime("%H:%M")
     
     return date_str, time_str

@@ -1,6 +1,6 @@
 import pandas as pd
 from datetime import datetime
-from utils.utils_horaires import time_to_minutes_2, time_to_minutes, minute_to_jour, minute_to_jour2
+from src.utils.utils_date import time_to_minutes_2, time_to_minutes, minute_to_date, minute_to_date2
 
 def load_data(fichier):
     """Load the data from the Excel file"""
@@ -35,7 +35,7 @@ def add_time_reference(fichier):
     j1, jours = calculate_delta_days(sillons_depart_df,sillons_arrivee_df)
     return chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df, j1, jours
 
-def format_trains(sillons_arrivee_df, sillons_depart_df, j1, jours):
+def format_trains(machines_df, sillons_arrivee_df, sillons_depart_df, j1, jours):
     """Process the trains data and create the list of trains with their arrival and departure times"""
     machines = ['DEB', 'FOR', 'DEG']
     machines_durees = machines_df['Duree '].to_list()
@@ -85,9 +85,9 @@ def correspondance_for_depart(trains_dep, trains_arr, correspondances_df, j1):
     for train in trains_dep:
         tous_trains = []
         for _, row in correspondances_df.iterrows():
-            if row['n°Train depart'] == train[1] and row['Jour depart'] == minute_to_jour(train[2], j1):
+            if row['n°Train depart'] == train[1] and row['Jour depart'] == minute_to_date(train[2], j1):
                 for train_arr in trains_arr:
-                    if row['n°Train arrivee'] == train_arr[1] and row['Jour arrivee'] == minute_to_jour(train_arr[2], j1):
+                    if row['n°Train arrivee'] == train_arr[1] and row['Jour arrivee'] == minute_to_date(train_arr[2], j1):
                         if train_arr not in tous_trains:
                             tous_trains.append(train_arr)
         trains_requis_dict[train] = tous_trains

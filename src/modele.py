@@ -1,16 +1,15 @@
 from gurobipy import Model, GRB
 import pandas as pd
-from utils.utils_donnees import charger_valeurs, process_trains, temps_indispo, trains_requis
-from utils.utils_horaires import minute_to_jour2
-from pathlib import Path
+from utils.utils_data import load_data, format_trains, unavailable_machines, correspondance_for_depart
+from utils.utils_date import minute_to_date2
 
 def creer_modele(fichier):
 
     # Charger les données
-    chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df, j1, jours = charger_valeurs(fichier)
-    trains, trains_arr, trains_dep, minutes, machines, machines_durees = process_trains(machines_df, sillons_arrivee_df, sillons_depart_df, j1, jours)
-    unavailable_periods, start_times = temps_indispo(machines_df, jours)
-    trains_requis_dict = trains_requis(trains_dep, trains_arr, correspondances_df, j1)
+    chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df, j1, jours = load_data(fichier)
+    trains, trains_arr, trains_dep, minutes, machines, machines_durees = format_trains(machines_df, sillons_arrivee_df, sillons_depart_df, j1, jours)
+    unavailable_periods, start_times = unavailable_machines(machines_df, jours)
+    trains_requis_dict = correspondance_for_depart(trains_dep, trains_arr, correspondances_df, j1)
 
 
     print('Donnees chargees')
@@ -146,7 +145,7 @@ def creer_modele(fichier):
         results = []
         for train in trains:
             if train[0] == 'ARR':
-                jour, horaire = minute_to_jour2(a[train[0],train[1],train[2]].X,j1)
+                jour, horaire = minute_to_date2(a[train[0],train[1],train[2]].X,j1)
                 results.append({
                     'Id tâche': f'{machines[0]}_{train[1]}_{jour}',
                     'Type de tâche': machines[0],
@@ -156,7 +155,7 @@ def creer_modele(fichier):
                     'Sillon': train[1]
                 })
             elif train[0] == 'DEP':
-                jour, horaire = minute_to_jour2(b[train[0],train[1],train[2]].X,j1)
+                jour, horaire = minute_to_date2(b[train[0],train[1],train[2]].X,j1)
                 results.append({
                     'Id tâche': f'{machines[1]}_{train[1]}_{jour}',
                     'Type de tâche': machines[1],
@@ -165,7 +164,7 @@ def creer_modele(fichier):
                     'Durée': machines_durees[1],
                     'Sillon': train[1]
                 })
-                jour, horaire = minute_to_jour2(c[train[0],train[1],train[2]].X,j1)
+                jour, horaire = minute_to_date2(c[train[0],train[1],train[2]].X,j1)
                 results.append({
                     'Id tâche': f'{machines[2]}_{train[1]}_{jour}',
                     'Type de tâche': machines[2],
