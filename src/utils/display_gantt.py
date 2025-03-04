@@ -62,7 +62,7 @@ if __name__ == "__main__":
         [sorted(resource_per_machine[machine]) for machine in ORDERED_MACHINES]
     ))
 
-    fig = px.timeline(gantt_df, x_start="Start", x_end="Finish", y="Resource", color="Train", color_discrete_sequence=px.colors.qualitative.Set1)
+    fig = px.timeline(gantt_df, x_start="Start", x_end="Finish", y="Resource", color="Train", color_discrete_sequence=px.colors.qualitative.Set3)
     fig.update_layout(xaxis=dict(title='Timestamp', tickformat='%H:%M:%S'))
     fig.update_yaxes(categoryorder="array", categoryarray=sorted_resources[::-1])
     fig.show()
