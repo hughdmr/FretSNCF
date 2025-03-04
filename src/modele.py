@@ -1,12 +1,13 @@
 from gurobipy import Model, GRB
 import pandas as pd
-from src.utils.utils_donnees import charger_valeurs, process_trains, temps_indispo, trains_requis, minute_to_datetime_df
+from utils/utils_donnees import charger_valeurs, process_trains, temps_indispo, trains_requis
+from utils/utils_horaires import minute_to_jour2
 
 def creer_modele(fichier):
 
     # Charger les données
     chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df, j1, jours = charger_valeurs(fichier)
-    trains, trains_arr, trains_dep, minutes, machines = process_trains(sillons_arrivee_df, sillons_depart_df, j1, jours)
+    trains, trains_arr, trains_dep, minutes, machines, machines_durees = process_trains(machines_df, sillons_arrivee_df, sillons_depart_df, j1, jours)
     unavailable_periods, start_times = temps_indispo(machines_df, jours)
     trains_requis_dict = trains_requis(trains_dep, trains_arr, correspondances_df, j1)
 
@@ -143,23 +144,47 @@ def creer_modele(fichier):
         print('Solution optimale trouvée')
         results = []
         for train in trains:
-            results.append({
-                'Train': train,
-                'Start Time DEB': a[train[0],train[1],train[2]].X if train in trains_arr else None,
-                'Start Time FOR': b[train[0],train[1],train[2]].X if train in trains_dep else None,
-                'Start Time DEG': c[train[0],train[1],train[2]].X if train in trains_dep else None
-            })
+            if train[0] == 'ARR':
+                jour, horaire = minute_to_jour2(a[train[0],train[1],train[2]].X,j1)
+                results.append({
+                    'Id tâche': f'{machines[0]}_{train[1]}_{jour}',
+                    'Type de tâche': machines[0],
+                    'Jour': jour,
+                    'Heure début': horaire,
+                    'Durée': machines_durees[0],
+                    'Sillon': train[1]
+                })
+            elif train[0] == 'DEP':
+                jour, horaire = minute_to_jour2(b[train[0],train[1],train[2]].X,j1)
+                results.append({
+                    'Id tâche': f'{machines[1]}_{train[1]}_{jour}',
+                    'Type de tâche': machines[1],
+                    'Jour': jour,
+                    'Heure début': horaire,
+                    'Durée': machines_durees[1],
+                    'Sillon': train[1]
+                })
+                jour, horaire = minute_to_jour2(c[train[0],train[1],train[2]].X,j1)
+                results.append({
+                    'Id tâche': f'{machines[2]}_{train[1]}_{jour}',
+                    'Type de tâche': machines[2],
+                    'Jour': jour,
+                    'Heure début': horaire,
+                    'Durée': machines_durees[2],
+                    'Sillon': train[1]
+                })
         
         # Create a DataFrame from the results
         df_results = pd.DataFrame(results)
+        df_results.to_excel(f'resultats_{fichier}.xlsx', index=False)
 
         # Convertir les minutes en date et heure pour chaque tâche
-        df_reordered = minute_to_datetime_df(df_results, j1)
-        df_reordered.to_excel(f'resultats{fichier}.xlsx', index=False)
+        # df_reordered = minute_to_datetime_df(df_results, j1)
+        # df_reordered.to_excel(f'resultats_{fichier}.xlsx', index=False)
 
     else:
         print("Aucune solution optimale trouvée.")
 
-    print(f'Modele resolu, resultats disponible à resultats{fichier}.xlsx')
+    print(f'Modele resolu, resultats disponible à resultats_{fichier}.xlsx')
 
-    return df_reordered
+    return df_results
