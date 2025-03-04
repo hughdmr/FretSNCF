@@ -1,8 +1,28 @@
-# **fret-sncf** Project
+# **Fret SNCF** Indian Pacific project
 
 ## **Introduction**
 
-This is the **fret-sncf** project.
+This repository hosts the Fret SNCF project, developed by the Indian Pacific team.
+
+In this project, we aim to model the management of a freight classification yard. 🚂 We utilize data from Woippy, the largest freight yard in France 🇫🇷, located near the borders of Luxembourg and Germany. However, the same principles apply to any classification yard.
+
+## **Contributors**
+
+- Angus Chisholm
+- Thomas Desforges
+- Marin d'Hébrail
+- Tanguy Garnier
+- Hugues d'Hardemare
+
+## **Repository structure**
+
+- The folder `data/`contains the instances (already uploaded in the folder)
+- The folder `outputs/`contains some of the outputs of the python scripts
+- The folder `src/`contains the code with:
+  - `notebooks/`: some notebooks for test
+  - `utils/`: utils functions used in the creation of the models
+- The poetry files to install a python virtual environment (cf Prerequisites)
+- `.gitignore`and `README.md`
 
 ## **Prerequisites (virtual environment)**
 
