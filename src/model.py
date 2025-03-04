@@ -3,8 +3,15 @@ import pandas as pd
 from utils.utils_data import format_trains, add_time_reference, unavailable_machines, correspondance_for_depart
 from utils.utils_date import minute_to_date2
 from pathlib import Path
+from dotenv import load_dotenv
+import os
 
 def create_model(fichier):
+    """Create the optimization model"""
+    load_dotenv()
+    MODEL_JALON1_NAME = os.getenv('MODEL_JALON1_NAME')
+    MODEL_SAVE_PATH = os.getenv('MODEL_SAVE_PATH')
+    RESULTS_FOLDER_SAVE_PATH = os.getenv('RESULTS_FOLDER_SAVE_PATH')
 
     # Charger les données
     chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df, j1, jours = add_time_reference(fichier)
@@ -17,9 +24,9 @@ def create_model(fichier):
 
 
     # Cree un modele
-    model = Model('optimisation')
+    model = Model(MODEL_JALON1_NAME)
 
-    print('Modele cree')
+    print(f'{MODEL_JALON1_NAME} cree')
 
     # Definir les variables de decision
     a = model.addVars(trains_arr, lb=0, ub=max(minutes), vtype=GRB.INTEGER, name="a")
@@ -141,7 +148,7 @@ def create_model(fichier):
     model.optimize()
     
     # Sauvegarder le modèle
-    model.write("outputs/models/jalon1.lp")
+    model.write(MODEL_SAVE_PATH)
 
     # Afficher les résultats
     if model.status == GRB.OPTIMAL:
@@ -180,8 +187,8 @@ def create_model(fichier):
         
         # Create a DataFrame from the results
         df_results = pd.DataFrame(results)
-        nom_fichier = Path(fichier).stem
-        df_results.to_excel(f'outputs/results/resultats_{nom_fichier}.xlsx', index=False, sheet_name="Taches machine")
+        FILE_NAME = Path(fichier).stem
+        df_results.to_excel(f'{RESULTS_FOLDER_SAVE_PATH}/results_{FILE_NAME}.xlsx', index=False, sheet_name="Taches machine")
 
         # Convertir les minutes en date et heure pour chaque tâche
         # df_reordered = minute_to_datetime_df(df_results, j1)
@@ -190,6 +197,6 @@ def create_model(fichier):
     else:
         print("Aucune solution optimale trouvée.")
 
-    print(f'Modele resolu, resultats disponible à outputs/results/resultats_{nom_fichier}.xlsx')
+    print(f'Modele resolu, resultats disponible à {RESULTS_FOLDER_SAVE_PATH}/results_{FILE_NAME}.xlsx')
 
     return df_results
