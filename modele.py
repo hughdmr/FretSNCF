@@ -155,11 +155,11 @@ def creer_modele(fichier):
 
         # Convertir les minutes en date et heure pour chaque tâche
         df_reordered = minute_to_datetime_df(df_results, j1)
-        df_reordered.to_excel('resultats.xlsx', index=False)
+        df_reordered.to_excel(f'resultats{fichier}.xlsx', index=False)
 
     else:
         print("Aucune solution optimale trouvée.")
 
-    print('Modele resolu')
+    print(f'Modele resolu, resultats disponible à resultats{fichier}.xlsx')
 
     return df_reordered

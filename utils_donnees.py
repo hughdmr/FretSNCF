@@ -13,10 +13,18 @@ def charger_donnees(fichier):
     return chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df
 
 def trouver_jours(sillons_depart_df,sillons_arrivee_df):
-    max_jour = sillons_depart_df['JDEP'].agg(['max'])
-    min_jour = sillons_arrivee_df['JARR'].agg(['min'])
-    j1 = datetime.strptime(min_jour['min'].strip(), "%d/%m/%Y")
-    jfin = datetime.strptime(max_jour['max'].strip(), "%d/%m/%Y")
+    max_jour = sillons_depart_df['JDEP'].agg(['max'])['max']
+    min_jour = sillons_arrivee_df['JARR'].agg(['min'])['min']
+
+    if type(max_jour) == str:
+        jfin = datetime.strptime(max_jour.strip(), "%d/%m/%Y")
+    elif type(max_jour) == pd._libs.tslibs.timestamps.Timestamp:
+        jfin = max_jour
+    if type(min_jour) == str:
+        j1 = datetime.strptime(min_jour.strip(), "%d/%m/%Y")
+    elif type(min_jour) == pd._libs.tslibs.timestamps.Timestamp:
+        j1 = min_jour
+
     diff = jfin - j1
     jours = diff.days
     return j1, jours
@@ -38,7 +46,7 @@ def process_trains(sillons_arrivee_df, sillons_depart_df, j1, jours):
         trains_dep.append(('DEP', train['n°TRAIN'], time_to_minutes_2(train['JDEP'], train['HDEP'], j1)))
 
     trains = trains_arr + trains_dep
-    minutes = list(range(0, 24 * 60 * jours))
+    minutes = list(range(0, 24 * 60 * (jours+1)))
     return trains, trains_arr, trains_dep, minutes, machines
 
 def temps_indispo(machines_df, jours):
