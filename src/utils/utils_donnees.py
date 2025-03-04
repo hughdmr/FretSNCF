@@ -1,6 +1,6 @@
 import pandas as pd
 from datetime import datetime
-from utils_horaires import time_to_minutes_2, time_to_minutes, minute_to_jour, minute_to_jour2
+from utils.utils_horaires import time_to_minutes_2, time_to_minutes, minute_to_jour, minute_to_jour2
 
 
 

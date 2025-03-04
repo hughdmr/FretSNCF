@@ -1,7 +1,8 @@
 from gurobipy import Model, GRB
 import pandas as pd
-from utils/utils_donnees import charger_valeurs, process_trains, temps_indispo, trains_requis
-from utils/utils_horaires import minute_to_jour2
+from utils.utils_donnees import charger_valeurs, process_trains, temps_indispo, trains_requis
+from utils.utils_horaires import minute_to_jour2
+from pathlib import Path
 
 def creer_modele(fichier):
 
@@ -176,7 +177,8 @@ def creer_modele(fichier):
         
         # Create a DataFrame from the results
         df_results = pd.DataFrame(results)
-        df_results.to_excel(f'resultats_{fichier}.xlsx', index=False)
+        nom_fichier = Path(fichier).stem
+        df_results.to_excel(f'outputs/results/resultats_{nom_fichier}.xlsx', index=False)
 
         # Convertir les minutes en date et heure pour chaque tâche
         # df_reordered = minute_to_datetime_df(df_results, j1)
@@ -185,6 +187,6 @@ def creer_modele(fichier):
     else:
         print("Aucune solution optimale trouvée.")
 
-    print(f'Modele resolu, resultats disponible à resultats_{fichier}.xlsx')
+    print(f'Modele resolu, resultats disponible à outputs/results/resultats_{nom_fichier}.xlsx')
 
     return df_results
