@@ -18,6 +18,7 @@ In this project, we aim to model the management of a freight classification yard
 
 - The folder `data/`contains the instances (already uploaded in the folder)
 - The folder `outputs/`contains some of the outputs of the python scripts (models and tables)
+  - `resultats_instance_WPY_realiste_jalon1.xlsx`is the excel with the results of the first jalon, you can use it to display graph with grantt and sankey.
 - The folder `src/`contains the code with:
   - `notebooks/`: some notebooks for test
   - `utils/`: utils functions used in the creation of the models
