@@ -35,8 +35,9 @@ def charger_valeurs(fichier):
     return chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df, j1, jours
 
 
-def process_trains(sillons_arrivee_df, sillons_depart_df, j1, jours):
+def process_trains(machines_df, sillons_arrivee_df, sillons_depart_df, j1, jours):
     machines = ['DEB', 'FOR', 'DEG']
+    machines_durees = machines_df['Duree '].to_list()
     trains_arr = []
     trains_dep = []
     for x, train in sillons_arrivee_df.iterrows():
@@ -47,7 +48,7 @@ def process_trains(sillons_arrivee_df, sillons_depart_df, j1, jours):
 
     trains = trains_arr + trains_dep
     minutes = list(range(0, 24 * 60 * (jours+1)))
-    return trains, trains_arr, trains_dep, minutes, machines
+    return trains, trains_arr, trains_dep, minutes, machines, machines_durees
 
 def temps_indispo(machines_df, jours):
     # Precompute unavailable time periods
@@ -92,12 +93,25 @@ def trains_requis(trains_dep, trains_arr, correspondances_df, j1):
     return trains_requis_dict
 
 
-def minute_to_datetime_df(df_results_test,j1):
-    # Convert minutes to date and time for each task
-    df_results_test[['Start Date DEB', 'Start Time DEB']] = df_results_test['Start Time DEB'].apply(lambda x: pd.Series(minute_to_jour2(x, j1) if pd.notnull(x) else (None, None)))
-    df_results_test[['Start Date FOR', 'Start Time FOR']] = df_results_test['Start Time FOR'].apply(lambda x: pd.Series(minute_to_jour2(x, j1) if pd.notnull(x) else (None, None)))
-    df_results_test[['Start Date DEG', 'Start Time DEG']] = df_results_test['Start Time DEG'].apply(lambda x: pd.Series(minute_to_jour2(x, j1) if pd.notnull(x) else (None, None)))
+# def minute_to_datetime_df(df_results,j1):
+#     #
+#     results_list = []
+#     for train in df_results.index:
+#         results_list.append({
+#                 'Id tâche': train,
+#                 'Start Time DEB': a[train[0],train[1],train[2]].X if train in trains_arr else None,
+#                 'Start Time FOR': b[train[0],train[1],train[2]].X if train in trains_dep else None,
+#                 'Start Time DEG': c[train[0],train[1],train[2]].X if train in trains_dep else None
+#             })
 
-    df_reordered = df_results_test.iloc[:, [0, 1, 4, 2, 5, 3, 6]]
+#     df_sortie = 
 
-    return df_reordered
+
+#     # Convert minutes to date and time for each task
+#     df_results_test[['Start Date DEB', 'Start Time DEB']] = df_results_test['Start Time DEB'].apply(lambda x: pd.Series(minute_to_jour2(x, j1) if pd.notnull(x) else (None, None)))
+#     df_results_test[['Start Date FOR', 'Start Time FOR']] = df_results_test['Start Time FOR'].apply(lambda x: pd.Series(minute_to_jour2(x, j1) if pd.notnull(x) else (None, None)))
+#     df_results_test[['Start Date DEG', 'Start Time DEG']] = df_results_test['Start Time DEG'].apply(lambda x: pd.Series(minute_to_jour2(x, j1) if pd.notnull(x) else (None, None)))
+
+#     df_reordered = df_results_test.iloc[:, [0, 1, 4, 2, 5, 3, 6]]
+
+#     return df_reordered
