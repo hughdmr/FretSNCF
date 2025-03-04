@@ -181,7 +181,7 @@ def create_model(fichier):
         # Create a DataFrame from the results
         df_results = pd.DataFrame(results)
         nom_fichier = Path(fichier).stem
-        df_results.to_excel(f'outputs/results/resultats_{nom_fichier}.xlsx', index=False)
+        df_results.to_excel(f'outputs/results/resultats_{nom_fichier}.xlsx', index=False, sheet_name="Taches machine")
 
         # Convertir les minutes en date et heure pour chaque tâche
         # df_reordered = minute_to_datetime_df(df_results, j1)

@@ -8,7 +8,7 @@ import pandas as pd
 
 # ORDERED_MACHINES = ["Debranchement", "Formation", "Degarage"]
 ORDERED_MACHINES = ["DEB", "FOR", "DEG"]
-MACHINE_TASKS_SHEET = "Sheet1"
+MACHINE_TASKS_SHEET = "Taches machine"
 
 
 class ResultColumnNames:
