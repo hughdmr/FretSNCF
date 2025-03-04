@@ -1,5 +1,8 @@
 from model import create_model
+from dotenv import load_dotenv
+import os
 
 if __name__ == '__main__':
-    file = 'data/instance_WPY_realiste_jalon1.xlsx'
-    create_model(file)
+    load_dotenv()
+    FILE_INSTANCE = os.getenv('FILE_INSTANCE')
+    create_model(FILE_INSTANCE)

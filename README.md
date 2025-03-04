@@ -25,6 +25,7 @@ In this project, we aim to model the management of a freight classification yard
   - `main.py`and `create_model.py`to create the model (jalon1).
 - The poetry files to install a python virtual environment (cf Prerequisites)
 - `.gitignore`and `README.md`
+- `.env`here is not ignored because there is no confidential data but it's used as a config file
 
 ## **Prerequisites (virtual environment)**
 
@@ -68,3 +69,7 @@ Before you begin, make sure you have the following installed on your machine to 
   poetry add <package_name>
   poetry install
   ```
+
+## **Config environment**
+
+Update your .env with the global variables you want to use for the execution of the code

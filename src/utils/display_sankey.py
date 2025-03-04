@@ -2,7 +2,7 @@ import os
 
 import plotly.graph_objects as go
 import pandas as pd
-
+from dotenv import load_dotenv
 
 ORDERED_MACHINES = ["Debranchement", "Formation", "Degarage"]
 CORRESPONDANCES_SHEET = "Correspondances"
@@ -23,10 +23,10 @@ def get_link_id(arrival_train_id, departure_train_id):
 
 
 if __name__ == "__main__":
+    load_dotenv()
+    FILE_INSTANCE = os.getenv("FILE_INSTANCE")
+    input_file_path = FILE_INSTANCE
     input_directory_path = r"..\données_MAJ"
-    # input_file_name = "instance_WPY_simple.xlsx"
-    input_file_path = "data/instance_WPY_realiste_jalon1.xlsx"
-    #input_file_path = os.path.join(input_directory_path, input_file_name)
 
     filter_on_departure_date = True
     departure_date_filter = "13/08/2022"
