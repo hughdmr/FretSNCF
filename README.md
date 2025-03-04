@@ -4,7 +4,7 @@
 
 This repository hosts the Fret SNCF project, developed by the Indian Pacific team.
 
-In this project, we aim to model the management of a freight classification yard. 🚂 We utilize data from Woippy, the largest freight yard in France 🇫🇷, located near the borders of Luxembourg and Germany. However, the same principles apply to any classification yard.
+In this project, we aim to model the management of a freight classification yard. We utilize data from Woippy, the largest freight yard in France. However, the same principles apply to any classification yard.
 
 ## **Contributors**
 
