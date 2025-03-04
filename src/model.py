@@ -4,7 +4,7 @@ from utils.utils_data import format_trains, add_time_reference, unavailable_mach
 from utils.utils_date import minute_to_date2
 from pathlib import Path
 
-def creer_modele(fichier):
+def create_model(fichier):
 
     # Charger les données
     chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df, j1, jours = add_time_reference(fichier)
@@ -106,7 +106,7 @@ def creer_modele(fichier):
 
     # Contrainte 3: la machine 'DEB' ne peut pas être utilisée dans les 60 minutes suivant l'heure d'arrivée du train
     for train in trains:
-        if train[0] == 'ARR':  # Check if the train type is 'ARR'
+        if train[0] == 'ARR': 
             arrival_minute = train[2]
             model.addConstr(a[train[0],train[1],train[2]] >= arrival_minute + 60, name=f"constraint_DEB_{train[1]}")
     
@@ -114,7 +114,7 @@ def creer_modele(fichier):
 
     # Contrainte 4: la machine 'DEG' doit être utilisée avant 35 minutes avant le départ du train de type 'DEP'
     for train in trains:
-        if train[0] == 'DEP':  # Check if the train type is 'DEP'
+        if train[0] == 'DEP':
             departure_minute = train[2]        
             model.addConstr(c[train[0],train[1],train[2]] <= departure_minute - 35, name=f"constraint_DEG_{train[1]}")
     
