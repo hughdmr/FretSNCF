@@ -1,8 +1,8 @@
-from model import create_model
-from dotenv import load_dotenv
-import os
+from model_jalon1 import ModelJalon1
 
 if __name__ == '__main__':
-    load_dotenv()
-    FILE_INSTANCE = os.getenv('FILE_INSTANCE')
-    create_model(FILE_INSTANCE)
+    try:
+        ModelJalon1().run_optimization()
+        print(f"Model created successfully for instance.")
+    except Exception as e:
+        print(f"An error occurred while creating the model: {e}")
