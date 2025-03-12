@@ -21,8 +21,10 @@ In this project, we aim to model the management of a freight classification yard
   - `resultats_instance_WPY_realiste_jalon1.xlsx`is the excel with the results of the first jalon, you can use it to display graph with grantt and sankey.
 - The folder `src/`contains the code with:
   - `notebooks/`: some notebooks for test
-  - `utils/`: utils functions used in the creation of the models
-  - `main.py`and `create_model.py`to create the model (jalon1).
+  - `utils/`: utils functions used in the creation of the models and displaying of the results.
+  - `model.py`: old version for creation of model
+  - `model_jalonN.py`: model for the Nth jalon.
+  - `main.py`: choose you model and run it.
 - The poetry files to install a python virtual environment (cf Prerequisites)
 - `.gitignore`and `README.md`
 - `.env`here is not ignored because there is no confidential data but it's used as a config file
@@ -73,3 +75,7 @@ Before you begin, make sure you have the following installed on your machine to 
 ## **Config environment**
 
 Update your .env with the global variables you want to use for the execution of the code
+
+## **Create a model**
+
+Run main with the config file updated and the model chose.
