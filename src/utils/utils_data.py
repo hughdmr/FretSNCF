@@ -1,6 +1,6 @@
 import pandas as pd
 from datetime import datetime
-from src.utils.utils_date import time_to_minutes_2, time_to_minutes, minute_to_date, minute_to_date2
+from utils.utils_date import time_to_minutes_2, time_to_minutes, minute_to_date, minute_to_date2
 
 def load_data(fichier):
     """Load the data from the Excel file"""
@@ -27,31 +27,32 @@ def calculate_delta_days(sillons_depart_df,sillons_arrivee_df):
 
     diff = jfin - j1
     jours = diff.days
-    return j1, jours
+    first_day = j1.weekday()
+    return j1, jours, first_day
 
 def add_time_reference(fichier):
     """Add the time reference to the data"""
     chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df = load_data(fichier)
-    j1, jours = calculate_delta_days(sillons_depart_df,sillons_arrivee_df)
-    return chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df, j1, jours
+    j1, jours,first_day = calculate_delta_days(sillons_depart_df,sillons_arrivee_df)
+    return chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df, j1, jours,first_day
 
-def format_trains(machines_df, sillons_arrivee_df, sillons_depart_df, j1, jours):
+def format_trains(machines_df, sillons_arrivee_df, sillons_depart_df, j1, jours,day_1):
     """Process the trains data and create the list of trains with their arrival and departure times"""
     machines = ['DEB', 'FOR', 'DEG']
     machines_durees = machines_df['Duree '].to_list()
     trains_arr = []
     trains_dep = []
     for x, train in sillons_arrivee_df.iterrows():
-        y = ('ARR', train['n°TRAIN'], time_to_minutes_2(train['JARR'], train['HARR'], j1))
+        y = ('ARR', train['n°TRAIN'], time_to_minutes_2(train['JARR'], train['HARR'], j1,day_1))
         trains_arr.append(y)
     for x, train in sillons_depart_df.iterrows():
-        trains_dep.append(('DEP', train['n°TRAIN'], time_to_minutes_2(train['JDEP'], train['HDEP'], j1)))
+        trains_dep.append(('DEP', train['n°TRAIN'], time_to_minutes_2(train['JDEP'], train['HDEP'], j1,day_1)))
 
     trains = trains_arr + trains_dep
-    minutes = list(range(0, 24 * 60 * (jours+1)))
+    minutes = list(range(0, 24 * 60 * (jours+1))) 
     return trains, trains_arr, trains_dep, minutes, machines, machines_durees
 
-def unavailable_machines(machines_df, jours):
+def unavailable_machines(machines_df, jours,day_1):
     """Process the unavailable periods for each machine"""
     unavailable_periods = {}
     for _, row in machines_df.iterrows():
@@ -64,20 +65,46 @@ def unavailable_machines(machines_df, jours):
             for period in periods:
                 period = period.strip('()')
                 day_of_week, time_str = period.split(',')
-                start_time = time_to_minutes(day_of_week, time_str.split('-')[0], jours)
-                end_time = time_to_minutes(day_of_week, time_str.split('-')[1], jours)
+                start_time = time_to_minutes(day_of_week, time_str.split('-')[0], jours,day_1)
+                end_time = time_to_minutes(day_of_week, time_str.split('-')[1], jours,day_1)
                 unavailable_periods[machine].append((start_time, end_time))
 
 
     start_times =[]
     for machine, periods in unavailable_periods.items():
         for (start_time, end_time) in periods:
-            start_times.append(start_time[0])
+            start_times.append((start_time[0],machine))
             if start_time[1] != 0:
-                start_times.append(start_time[1])
-        break
+                start_times.append((start_time[1],machine))
 
     return unavailable_periods, start_times
+
+def unavailable_chantiers(chantiers_df, jours,day_1):
+    """Process the unavailable periods for each machine"""
+    unavailable_periods_chantiers = {}
+    for _, row in chantiers_df.iterrows():
+        chantier = row['Chantier']
+        unavailable_times = row['Indisponibilites']
+        
+        if unavailable_times != 0:
+            periods = unavailable_times.split(';')
+            unavailable_periods_chantiers[chantier] = []
+            for period in periods:
+                period = period.strip('()')
+                day_of_week, time_str = period.split(',')
+                start_time = time_to_minutes(day_of_week, time_str.split('-')[0], jours,day_1)
+                end_time = time_to_minutes(day_of_week, time_str.split('-')[1], jours,day_1)
+                unavailable_periods_chantiers[chantier].append((start_time, end_time))
+
+
+    start_times =[]
+    for chantier, periods in unavailable_periods_chantiers.items():
+        for (start_time, end_time) in periods:
+            start_times.append((start_time[0],chantier))
+            if start_time[1] != 0:
+                start_times.append((start_time[1],chantier))
+
+    return unavailable_periods_chantiers, start_times
 
 def correspondance_for_depart(trains_dep, trains_arr, correspondances_df, j1):
     """Find the required arrived trains for each departed train"""
@@ -92,27 +119,3 @@ def correspondance_for_depart(trains_dep, trains_arr, correspondances_df, j1):
                             tous_trains.append(train_arr)
         trains_requis_dict[train] = tous_trains
     return trains_requis_dict
-
-
-# def minute_to_datetime_df(df_results,j1):
-#     #
-#     results_list = []
-#     for train in df_results.index:
-#         results_list.append({
-#                 'Id tâche': train,
-#                 'Start Time DEB': a[train[0],train[1],train[2]].X if train in trains_arr else None,
-#                 'Start Time FOR': b[train[0],train[1],train[2]].X if train in trains_dep else None,
-#                 'Start Time DEG': c[train[0],train[1],train[2]].X if train in trains_dep else None
-#             })
-
-#     df_sortie = 
-
-
-#     # Convert minutes to date and time for each task
-#     df_results_test[['Start Date DEB', 'Start Time DEB']] = df_results_test['Start Time DEB'].apply(lambda x: pd.Series(minute_to_jour2(x, j1) if pd.notnull(x) else (None, None)))
-#     df_results_test[['Start Date FOR', 'Start Time FOR']] = df_results_test['Start Time FOR'].apply(lambda x: pd.Series(minute_to_jour2(x, j1) if pd.notnull(x) else (None, None)))
-#     df_results_test[['Start Date DEG', 'Start Time DEG']] = df_results_test['Start Time DEG'].apply(lambda x: pd.Series(minute_to_jour2(x, j1) if pd.notnull(x) else (None, None)))
-
-#     df_reordered = df_results_test.iloc[:, [0, 1, 4, 2, 5, 3, 6]]
-
-#     return df_reordered

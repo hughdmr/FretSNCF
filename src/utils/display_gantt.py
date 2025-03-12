@@ -26,7 +26,7 @@ def get_resource_name(task_type, task_date):
 
 
 if __name__ == "__main__":
-    load_dotenv()
+    load_dotenv(override=True)
     RESULTS_FILE_PATH = os.getenv("RESULTS_FILE_PATH")
 
     result_df = pd.read_excel(RESULTS_FILE_PATH, sheet_name=MACHINE_TASKS_SHEET)
