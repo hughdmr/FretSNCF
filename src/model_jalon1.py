@@ -89,7 +89,7 @@ class ModelJalon1:
     def _define_constraints(self):
         """Define constraints for the optimization model."""
         self.M = max(self.minutes)+1
-        self.epsilon = 0.5
+        self.epsilon = 1
     
         def define_unavailability_machines_constraints():
             """Constraint 1.1: Ensure machines respect unavailable periods."""
