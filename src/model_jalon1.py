@@ -297,8 +297,7 @@ class ModelJalon1:
         else:
             print("No optimal solution found")
             self.model.computeIIS()
-            self.model.write('infeasible.ilp')
-            FILE_NAME = Path(self.fichier).stem
+            self.model.write('outputs/models/infeasible.ilp')
             return None
         
     def run_optimization(self):
