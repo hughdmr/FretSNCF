@@ -38,7 +38,7 @@ class ModelJalon2:
         
         (
             self.trains, self.trains_arr, self.trains_dep, self.minutes,
-            self.machines, self.machines_durees
+            self.machines, self.machines_durees, self.minute_slots
         ) = format_trains(
             self.machines_df, self.sillons_arrivee_df, self.sillons_depart_df,
             self.j1, self.jours, self.first_day
@@ -89,9 +89,9 @@ class ModelJalon2:
             self.chant_e = self.model.addVars(self.trains_dep, 2, self.start_times_chantiers, vtype=GRB.BINARY, name="chant_e")
             self.chant_f = self.model.addVars(self.trains_dep, 2, self.start_times_chantiers, vtype=GRB.BINARY, name="chant_f")
             
-            self.rec_occup = self.model.addVars(self.trains_arr, self.minutes, vtype=GRB.BINARY, name="rec_occup")
-            self.for_occup = self.model.addVars(self.trains_dep, self.minutes, vtype=GRB.BINARY, name="for_occup")
-            self.dep_occup = self.model.addVars(self.trains_dep, self.minutes, vtype=GRB.BINARY, name="dep_occup")
+            self.rec_occup = self.model.addVars(self.trains_arr, self.minute_slots, vtype=GRB.BINARY, name="rec_occup")
+            self.for_occup = self.model.addVars(self.trains_dep, self.minute_slots, vtype=GRB.BINARY, name="for_occup")
+            self.dep_occup = self.model.addVars(self.trains_dep, self.minute_slots, vtype=GRB.BINARY, name="dep_occup")
 
         define_decision_variables(self)
         define_auxiliary_variables(self)
@@ -240,90 +240,104 @@ class ModelJalon2:
 
             print("Constraint 7: Task time slots defined.")
 
-        def define_chantier_occupation_relation_constraints():
-            """Constraint 8: Relate binary variables for occupation to the start time of each machine"""
+        def define_REC_occupation_relation_constraints():
+            """Constraint 8.1: Relate binary variables for occupation to the start time of each machine"""
             for minute in self.minutes:
-                for train in self.train_arr:
+                for train in self.trains_arr:
                     # Chantier REC
-                    # When minute < self.a + 14 (duree machine), self.rec_occup = 1
+                    # When minute < self.a + 15(duree machine), self.rec_occup = 1
                     self.model.addConstr(
-                        self.rec_occup[train[0],train[1],train[2], minute] >= 1 - (minute - (self.a[train[0],train[1],train[2]]+14)) / self.M,
+                        self.rec_occup[train[0],train[1],train[2], minute] >= 1 - (minute - (self.a[train[0],train[1],train[2]]+15)) / (15*self.M),
                         name=f"rec_occup_before_{train}_{minute}"
                     )
-                    # When minute >= self.a + 14, self.rec_occup = 0
+                    # When minute >= self.a + 15, self.rec_occup = 0
                     self.model.addConstr(
-                        self.rec_occup[train, minute] <= (minute - (self.a[train]+14)) / self.M,
+                        self.rec_occup[train[0],train[1],train[2], minute] <= (minute - (self.a[train[0],train[1],train[2]]+15)) / (15*self.M),
                         name=f"rec_occup_after_{train}_{minute}"
                     )
                     # When minute >= train[2] (harr), self.rec_occup = 1
                     self.model.addConstr(
-                        self.rec_occup[train[0], train[1], train[2], minute] >= (minute - train[2]) / self.M,
-                        name=f"rec_occup_harr_after_{train}_{minute}"
+                        self.rec_occup[train[0], train[1], train[2], minute] >= (minute - train[2]) / (15*self.M),
+                        name=f"rec_occup_after_harr_{train}_{minute}"
                     )
                     # When minute < train[2] (harr), self.rec_occup = 0
                     self.model.addConstr(
-                        self.rec_occup[train[0], train[1], train[2], minute] <= 1 - (minute - train[2]) / self.M,
-                        name=f"rec_occup_harr_before_{train}_{minute}"
+                        self.rec_occup[train[0], train[1], train[2], minute] <= 1 - (minute - train[2]) / (15*self.M),
+                        name=f"rec_occup_before_harr_{train}_{minute}"
                     )
-                for train in self.train_dep:
+            print("Constraint 8.1: Occupation variables REC related to start time defined.")
+        
+        def define_FOR_occupation_relation_constraints():
+            """Constraint 8.2: Relate binary variables for occupation to the start time of each machine"""
+            
+            for minute in self.minute_slots:
+                for train in self.trains_dep:
                     # Chantier FOR
-                    # When minute < self.c + 14 , self.rec_occup = 1
+                    # When minute < self.c + temps machine , self.rec_occup = 1
                     self.model.addConstr(
-                        self.for_occup[train[0],train[1],train[2], minute] >= 1 - (minute - (self.c[train[0],train[1],train[2]]+14)) / self.M,
+                        self.for_occup[train[0],train[1],train[2], minute] >= 1 - (minute - (self.c[train[0],train[1],train[2]]+15)) / (15*self.M),
                         name=f"for_occup_before_{train}_{minute}"
                     )
+                    print(type(self.for_occup[train[0],train[1],train[2], minute]))
                     # When minute >= self.c + 14, self.rec_occup = 0
                     self.model.addConstr(
-                        self.for_occup[train, minute] <= (minute - (self.c[train[0],train[1],train[2]]+14)) / self.M,
+                        self.for_occup[train[0],train[1],train[2], minute] <= (minute - (self.c[train[0],train[1],train[2]]+15)) / (15*self.M),
                         name=f"for_occup_after_{train}_{minute}"
                     )
-                    # When minute >= self.b , self.rec_occup = 1
+                    print(train,minute)
+                    print(type(self.a[train[0],train[1],train[2]]))
+                    #When minute >= self.a , self.rec_occup = 1
                     self.model.addConstr(
-                        self.for_occup[train[0], train[1], train[2], minute] >= (minute - self.b[train[0],train[1],train[2]]) / self.M,
-                        name=f"for_occup_harr_after_{train}_{minute}"
+                       self.for_occup[train[0],train[1],train[2], minute] >= (minute - self.b[train[0],train[1],train[2]]) / (15*self.M),
+                       name=f"for_occup_harr_after_{train}_{minute}"
                     )
-                    # When minute < self.b, self.rec_occup = 0
+                    #When minute < self.a, self.rec_occup = 0
                     self.model.addConstr(
-                        self.for_occup[train[0], train[1], train[2], minute] <= 1 - (minute - self.b[train[0],train[1],train[2]]) / self.M,
-                        name=f"for_occup_harr_before_{train}_{minute}"
+                       self.for_occup[train[0],train[1],train[2], minute] <= 1 - (minute - self.b[train[0],train[1],train[2]]) / (15*self.M),
+                       name=f"for_occup_harr_before_{train}_{minute}"
                     )
+            print("Constraint 8.2: Occupation variables FOR related to start time defined.")
 
+        def define_DEP_occupation_relation_constraints():
+            """Constraint 8.3: Relate binary variables for occupation to the start time of each machine"""
+            for minute in self.minutes:
+                for train in self.trains_dep:
                     # Chantier DEP
-                    # When minute < train[2] (hdep) , self.rec_occup = 1
+                    # When minute < train[2] (hdep) , self.dep_occup = 1
                     self.model.addConstr(
-                        self.dep_occup[train[0],train[1],train[2], minute] >= 1 - (minute - (train[2])) / self.M,
+                        self.dep_occup[train[0],train[1],train[2], minute] >= 1 - (minute - (train[2])) / (15*self.M),
                         name=f"dep_occup_before_{train}_{minute}"
                     )
-                    # When minute >= train[2] (hdep), self.rec_occup = 0
+                    # When minute >= train[2] (hdep), self.dep_occup = 0
                     self.model.addConstr(
-                        self.dep_occup[train, minute] <= (minute - (train[2])) / self.M,
+                        self.dep_occup[train[0],train[1],train[2], minute] <= (minute - (train[2])) / (15*self.M),
                         name=f"dep_occup_after_{train}_{minute}"
                     )
-                    # When minute >= self.c + 14 , self.rec_occup = 1
+                    # When minute >= self.c , self.dep_occup = 1
                     self.model.addConstr(
-                        self.dep_occup[train[0], train[1], train[2], minute] >= (minute - (self.c[train[0],train[1],train[2]]+14)) / self.M,
+                        self.dep_occup[train[0], train[1], train[2], minute] >= (minute - (self.c[train[0],train[1],train[2]])) / (15*self.M),
                         name=f"dep_occup_harr_after_{train}_{minute}"
                     )
-                    # When minute < self.c + 14, self.rec_occup = 0
+                    # When minute < self.c, self.dep_occup = 0
                     self.model.addConstr(
-                        self.dep_occup[train[0], train[1], train[2], minute] <= 1 - (minute - (self.c[train[0],train[1],train[2]]+14)) / self.M,
+                        self.dep_occup[train[0], train[1], train[2], minute] <= 1 - (minute - (self.c[train[0],train[1],train[2]])) / (15*self.M),
                         name=f"dep_occup_harr_before_{train}_{minute}"
                     )
-            print("Constraint 8: Occupation variables related to start time defined.")
+            print("Constraint 8.3: Occupation variables DEP related to start time defined.")
         
         def max_voies_constraint():
             """Constraint 9: Ensure that no more than max_voies are used at any time."""
             for minute in self.minutes:
                 self.model.addConstr(
-                    sum(self.rec_occup[train[0], train[1], train[2], minute] for train in self.train_arr) <= self.max_voies[0],
+                    sum(self.rec_occup[train[0], train[1], train[2], minute] for train in self.trains_arr) <= self.max_voies[0],
                     name=f"max_voies_constraint_{minute}"
                 )
                 self.model.addConstr(
-                    sum(self.rec_occup[train[0], train[1], train[2], minute] for train in self.train_dep) <= self.max_voies[1],
+                    sum(self.for_occup[train[0], train[1], train[2], minute] for train in self.trains_dep) <= self.max_voies[1],
                     name=f"max_voies_constraint_{minute}"
                 )
                 self.model.addConstr(
-                    sum(self.dep_occup[train[0], train[1], train[2], minute] for train in self.train_dep) <= self.max_voies[2],
+                    sum(self.dep_occup[train[0], train[1], train[2], minute] for train in self.trains_dep) <= self.max_voies[2],
                     name=f"max_voies_constraint_{minute}"
                 )
             print("Constraint 9: Maximum voies constraint defined.")
@@ -332,21 +346,26 @@ class ModelJalon2:
             """Constraint 10: Calculate the maximum number of voies used."""
             for minute in self.minutes:
                 self.model.addConstr(
-                    self.rec_max[minute] >= sum(self.rec_occup[train[0], train[1], train[2], minute] for train in self.train_arr),
+                    self.rec_max[minute] >= sum(self.rec_occup[train[0], train[1], train[2], minute] for train in self.trains_arr),
                     name=f"rec_max_constraint_{minute}"
                 )
                 self.model.addConstr(
-                    self.for_max[minute] >= sum(self.for_occup[train[0], train[1], train[2], minute] for train in self.train_dep),
+                    self.for_max[minute] >= sum(self.for_occup[train[0], train[1], train[2], minute] for train in self.trains_dep),
                     name=f"for_max_constraint_{minute}"
                 )
                 self.model.addConstr(
-                    self.dep_max[minute] >= sum(self.dep_occup[train[0], train[1], train[2], minute] for train in self.train_dep),
+                    self.dep_max[minute] >= sum(self.dep_occup[train[0], train[1], train[2], minute] for train in self.trains_dep),
                     name=f"dep_max_constraint_{minute}"
                 )
             print("Constraint 10: Maximum voies used calculated.")
                 
   
         define_unavailability_machines_constraints()
+        define_FOR_occupation_relation_constraints()
+        define_REC_occupation_relation_constraints()
+        define_DEP_occupation_relation_constraints()
+        max_voies_constraint()
+        calculate_max_voies_used()
         define_unavailability_chantier_constraints()
         define_single_train_per_machine_constraints()
         define_deb_usage_delay_constraint()
@@ -354,9 +373,9 @@ class ModelJalon2:
         define_for_after_deb_constraint()
         define_for_before_deg_constraint()
         define_task_time_slots_constraint()
-        define_chantier_occupation_relation_constraints()
-        max_voies_constraint()
-        calculate_max_voies_used()
+        
+        
+        
 
         print('Constraints defined')
     
