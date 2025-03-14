@@ -119,3 +119,8 @@ def correspondance_for_depart(trains_dep, trains_arr, correspondances_df, j1):
                             tous_trains.append(train_arr)
         trains_requis_dict[train] = tous_trains
     return trains_requis_dict
+
+def find_max_voies(chantiers_df):
+    """Find the maximum number of voies used in the data"""
+    max_voies = chantiers_df['Nombre de voies'].to_numpy()
+    return max_voies

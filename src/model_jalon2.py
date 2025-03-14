@@ -3,7 +3,7 @@
 from gurobipy import Model, GRB
 import pandas as pd
 from utils.utils_data import (
-    format_trains, add_time_reference, unavailable_machines, correspondance_for_depart, unavailable_chantiers
+    format_trains, add_time_reference, unavailable_machines, correspondance_for_depart, unavailable_chantiers, find_max_voies
 )
 from utils.utils_date import minute_to_date2
 from pathlib import Path
@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 import os
 import time as tme
 
-class ModelJalon1:
+class ModelJalon2:
     def __init__(self):
         """Initialize the optimization model."""
         self.start_program_time = tme.time()
@@ -47,6 +47,7 @@ class ModelJalon1:
         self.unavailable_periods, self.start_times = unavailable_machines(self.machines_df, self.jours, self.first_day)
         self.unavailable_periods_chantiers, self.start_times_chantiers = unavailable_chantiers(self.chantiers_df, self.jours, self.first_day)
         self.trains_requis_dict = correspondance_for_depart(self.trains_dep, self.trains_arr, self.correspondances_df, self.j1)
+        self.max_voies = find_max_voies(self.chantiers_df)
         print('Data loaded')
 
     def _define_variables(self):
@@ -63,6 +64,11 @@ class ModelJalon1:
             self.aint = self.model.addVars(self.trains_arr, vtype=GRB.INTEGER, name="aint")
             self.bint = self.model.addVars(self.trains_dep, vtype=GRB.INTEGER, name="bint")
             self.cint = self.model.addVars(self.trains_dep, vtype=GRB.INTEGER, name="cint")
+
+            #auxiliary varaibles for max voies occupied at any time
+            self.rec_max = self.model.addVars(self.minutes, vtype=GRB.INTEGER, name="REC Max voies")
+            self.for_max = self.model.addVars(self.minutes, vtype=GRB.INTEGER, name="FOR Max voies")
+            self.dep_max = self.model.addVars(self.minutes, vtype=GRB.INTEGER, name="DEP Max voies")
 
         def define_binary_variables(self):
             """Define binary variables for the optimization model."""
@@ -82,6 +88,10 @@ class ModelJalon1:
             self.chant_d = self.model.addVars(self.trains_arr, 2, self.start_times_chantiers, vtype=GRB.BINARY, name="chant_d")
             self.chant_e = self.model.addVars(self.trains_dep, 2, self.start_times_chantiers, vtype=GRB.BINARY, name="chant_e")
             self.chant_f = self.model.addVars(self.trains_dep, 2, self.start_times_chantiers, vtype=GRB.BINARY, name="chant_f")
+            
+            self.rec_occup = self.model.addVars(self.trains_arr, self.minutes, vtype=GRB.BINARY, name="rec_occup")
+            self.for_occup = self.model.addVars(self.trains_dep, self.minutes, vtype=GRB.BINARY, name="for_occup")
+            self.dep_occup = self.model.addVars(self.trains_dep, self.minutes, vtype=GRB.BINARY, name="dep_occup")
 
         define_decision_variables(self)
         define_auxiliary_variables(self)
@@ -150,7 +160,8 @@ class ModelJalon1:
                                 self.model.addConstr(self.c[t[0], t[1], t[2]] >= end_time[1] + self.epsilon - self.M * self.chant_f[t[0], t[1], t[2], 1, start_time[1], chantier])
 
             print("Constraint 1.2: Unavailability chantier constraints defined")
-        
+                    
+
         def define_single_train_per_machine_constraints():
             """Constraint 2: Ensure each machine processes one train at a time."""
             for machine in self.machines:
@@ -228,6 +239,112 @@ class ModelJalon1:
                 )
 
             print("Constraint 7: Task time slots defined.")
+
+        def define_chantier_occupation_relation_constraints():
+            """Constraint 8: Relate binary variables for occupation to the start time of each machine"""
+            for minute in self.minutes:
+                for train in self.train_arr:
+                    # Chantier REC
+                    # When minute < self.a + 14 (duree machine), self.rec_occup = 1
+                    self.model.addConstr(
+                        self.rec_occup[train[0],train[1],train[2], minute] >= 1 - (minute - (self.a[train[0],train[1],train[2]]+14)) / self.M,
+                        name=f"rec_occup_before_{train}_{minute}"
+                    )
+                    # When minute >= self.a + 14, self.rec_occup = 0
+                    self.model.addConstr(
+                        self.rec_occup[train, minute] <= (minute - (self.a[train]+14)) / self.M,
+                        name=f"rec_occup_after_{train}_{minute}"
+                    )
+                    # When minute >= train[2] (harr), self.rec_occup = 1
+                    self.model.addConstr(
+                        self.rec_occup[train[0], train[1], train[2], minute] >= (minute - train[2]) / self.M,
+                        name=f"rec_occup_harr_after_{train}_{minute}"
+                    )
+                    # When minute < train[2] (harr), self.rec_occup = 0
+                    self.model.addConstr(
+                        self.rec_occup[train[0], train[1], train[2], minute] <= 1 - (minute - train[2]) / self.M,
+                        name=f"rec_occup_harr_before_{train}_{minute}"
+                    )
+                for train in self.train_dep:
+                    # Chantier FOR
+                    # When minute < self.c + 14 , self.rec_occup = 1
+                    self.model.addConstr(
+                        self.for_occup[train[0],train[1],train[2], minute] >= 1 - (minute - (self.c[train[0],train[1],train[2]]+14)) / self.M,
+                        name=f"for_occup_before_{train}_{minute}"
+                    )
+                    # When minute >= self.c + 14, self.rec_occup = 0
+                    self.model.addConstr(
+                        self.for_occup[train, minute] <= (minute - (self.c[train[0],train[1],train[2]]+14)) / self.M,
+                        name=f"for_occup_after_{train}_{minute}"
+                    )
+                    # When minute >= self.b , self.rec_occup = 1
+                    self.model.addConstr(
+                        self.for_occup[train[0], train[1], train[2], minute] >= (minute - self.b[train[0],train[1],train[2]]) / self.M,
+                        name=f"for_occup_harr_after_{train}_{minute}"
+                    )
+                    # When minute < self.b, self.rec_occup = 0
+                    self.model.addConstr(
+                        self.for_occup[train[0], train[1], train[2], minute] <= 1 - (minute - self.b[train[0],train[1],train[2]]) / self.M,
+                        name=f"for_occup_harr_before_{train}_{minute}"
+                    )
+
+                    # Chantier DEP
+                    # When minute < train[2] (hdep) , self.rec_occup = 1
+                    self.model.addConstr(
+                        self.dep_occup[train[0],train[1],train[2], minute] >= 1 - (minute - (train[2])) / self.M,
+                        name=f"dep_occup_before_{train}_{minute}"
+                    )
+                    # When minute >= train[2] (hdep), self.rec_occup = 0
+                    self.model.addConstr(
+                        self.dep_occup[train, minute] <= (minute - (train[2])) / self.M,
+                        name=f"dep_occup_after_{train}_{minute}"
+                    )
+                    # When minute >= self.c + 14 , self.rec_occup = 1
+                    self.model.addConstr(
+                        self.dep_occup[train[0], train[1], train[2], minute] >= (minute - (self.c[train[0],train[1],train[2]]+14)) / self.M,
+                        name=f"dep_occup_harr_after_{train}_{minute}"
+                    )
+                    # When minute < self.c + 14, self.rec_occup = 0
+                    self.model.addConstr(
+                        self.dep_occup[train[0], train[1], train[2], minute] <= 1 - (minute - (self.c[train[0],train[1],train[2]]+14)) / self.M,
+                        name=f"dep_occup_harr_before_{train}_{minute}"
+                    )
+            print("Constraint 8: Occupation variables related to start time defined.")
+        
+        def max_voies_constraint():
+            """Constraint 9: Ensure that no more than max_voies are used at any time."""
+            for minute in self.minutes:
+                self.model.addConstr(
+                    sum(self.rec_occup[train[0], train[1], train[2], minute] for train in self.train_arr) <= self.max_voies[0],
+                    name=f"max_voies_constraint_{minute}"
+                )
+                self.model.addConstr(
+                    sum(self.rec_occup[train[0], train[1], train[2], minute] for train in self.train_dep) <= self.max_voies[1],
+                    name=f"max_voies_constraint_{minute}"
+                )
+                self.model.addConstr(
+                    sum(self.dep_occup[train[0], train[1], train[2], minute] for train in self.train_dep) <= self.max_voies[2],
+                    name=f"max_voies_constraint_{minute}"
+                )
+            print("Constraint 9: Maximum voies constraint defined.")
+
+        def calculate_max_voies_used():
+            """Constraint 10: Calculate the maximum number of voies used."""
+            for minute in self.minutes:
+                self.model.addConstr(
+                    self.rec_max[minute] >= sum(self.rec_occup[train[0], train[1], train[2], minute] for train in self.train_arr),
+                    name=f"rec_max_constraint_{minute}"
+                )
+                self.model.addConstr(
+                    self.for_max[minute] >= sum(self.for_occup[train[0], train[1], train[2], minute] for train in self.train_dep),
+                    name=f"for_max_constraint_{minute}"
+                )
+                self.model.addConstr(
+                    self.dep_max[minute] >= sum(self.dep_occup[train[0], train[1], train[2], minute] for train in self.train_dep),
+                    name=f"dep_max_constraint_{minute}"
+                )
+            print("Constraint 10: Maximum voies used calculated.")
+                
   
         define_unavailability_machines_constraints()
         define_unavailability_chantier_constraints()
@@ -237,11 +354,14 @@ class ModelJalon1:
         define_for_after_deb_constraint()
         define_for_before_deg_constraint()
         define_task_time_slots_constraint()
+        define_chantier_occupation_relation_constraints()
+        max_voies_constraint()
+        calculate_max_voies_used()
 
         print('Constraints defined')
     
     def _define_objective_function(self):
-        self.model.setObjective(0, GRB.MINIMIZE)  # Pas d'optimisation spécifique ici pour ce jalon
+        self.model.setObjective(self.for_max, GRB.MINIMIZE)  # Minimise taux d'occupation des voies de chantier FOR
         print('Objective function defined')
 
     def optimize(self):
