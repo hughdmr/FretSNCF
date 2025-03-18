@@ -15,7 +15,7 @@ class ModelJalon1:
         """Initialize the optimization model."""
         self.start_program_time = tme.time()
         load_dotenv(override=True)
-        self.model_name = os.getenv('MODEL_JALON1_NAME')
+        self.model_name = os.getenv('MODEL_NAME')
         self.model_save_path = os.getenv('MODEL_SAVE_PATH')
         self.results_folder_save_path = os.getenv('RESULTS_FOLDER_SAVE_PATH')
         self.fichier = os.getenv('FILE_INSTANCE')
