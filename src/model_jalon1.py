@@ -21,6 +21,7 @@ class ModelJalon1:
         self.fichier = os.getenv('FILE_INSTANCE')
 
         self.model = Model(self.model_name)
+        self.model.setParam("OutputFlag", 0)
         self._load_data()
         self.data_loaded_time = tme.time()
         self._define_variables()
@@ -37,9 +38,9 @@ class ModelJalon1:
         
         (
             self.trains, self.trains_arr, self.trains_dep, self.minutes,
-            self.machines, self.machines_durees
+            self.machines, self.machines_durees, self.minute_slots, self.chantiers
         ) = format_trains(
-            self.machines_df, self.sillons_arrivee_df, self.sillons_depart_df,
+            self.machines_df, self.sillons_arrivee_df, self.sillons_depart_df, self.chantiers_df,
             self.j1, self.jours, self.first_day
         )
         

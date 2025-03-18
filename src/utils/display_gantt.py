@@ -1,16 +1,8 @@
 import datetime
 import itertools
-import os
 
 import plotly.express as px
 import pandas as pd
-from dotenv import load_dotenv
-
-
-# ORDERED_MACHINES = ["Debranchement", "Formation", "Degarage"]
-ORDERED_MACHINES = ["DEB", "FOR", "DEG"]
-MACHINE_TASKS_SHEET = "Taches machine"
-
 
 class ResultColumnNames:
     TASK_ID = "Id tâche"
@@ -20,17 +12,15 @@ class ResultColumnNames:
     TASK_DURATION = "Durée"
     TASK_TRAIN = "Sillon"
 
-
 def get_resource_name(task_type, task_date):
     return f"{task_type} {task_date.isoformat()}"
-
-
-if __name__ == "__main__":
-    load_dotenv(override=True)
-    RESULTS_FILE_PATH = os.getenv("RESULTS_FILE_PATH")
-
+    
+def display_gantt(results_file_path, gantt_image_save_path, save_image=True):
+    ORDERED_MACHINES = ["DEB", "FOR", "DEG"]
+    MACHINE_TASKS_SHEET = "Taches machine"
+    RESULTS_FILE_PATH = results_file_path
+    
     result_df = pd.read_excel(RESULTS_FILE_PATH, sheet_name=MACHINE_TASKS_SHEET)
-    # Ensure that date columns are properly parsed
     result_df[ResultColumnNames.TASK_DATE] = pd.to_datetime(result_df[ResultColumnNames.TASK_DATE],  format="%d/%m/%Y")
     result_df[ResultColumnNames.TASK_HOUR] = pd.to_datetime(result_df[ResultColumnNames.TASK_HOUR], format="%H:%M").dt.time
     dummy_date = datetime.date(2000, 1, 1)
@@ -65,4 +55,9 @@ if __name__ == "__main__":
     fig = px.timeline(gantt_df, x_start="Start", x_end="Finish", y="Resource", color="Train", color_discrete_sequence=px.colors.qualitative.Set3)
     fig.update_layout(xaxis=dict(title='Timestamp', tickformat='%H:%M:%S'))
     fig.update_yaxes(categoryorder="array", categoryarray=sorted_resources[::-1])
+    if save_image:
+        fig.write_image(gantt_image_save_path)
     fig.show()
+    
+if __name__ == '__main__':
+    display_gantt("results.xlsx", "gantt.png", False)

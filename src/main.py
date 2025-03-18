@@ -1,3 +1,4 @@
+from model_jalon1 import ModelJalon1
 from model_jalon2 import ModelJalon2
 
 if __name__ == '__main__':
