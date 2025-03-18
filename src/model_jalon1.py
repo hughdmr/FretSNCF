@@ -10,6 +10,7 @@ import os
 import time as tme
 
 class ModelJalon1:
+    """Optimization model for Jalon 1."""
     def __init__(self):
         """Initialize the optimization model."""
         self.start_program_time = tme.time()

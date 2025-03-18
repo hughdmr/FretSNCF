@@ -12,6 +12,7 @@ import os
 import time as tme
 
 class ModelJalon2:
+    """Optimization model for Jalon 2."""
     def __init__(self):
         """Initialize the optimization model."""
         self.start_program_time = tme.time()
@@ -366,7 +367,7 @@ class ModelJalon2:
                     )
             print("8.3: Occupation variables DEP related to start time defined.")
         
-        def max_voies_constraint():
+        def define_max_voies_constraint():
             """Constraint 9: Ensure that no more than max_voies are used at any time."""
             for minute in self.minute_slots:
                 self.model.addConstr(

@@ -1,6 +1,6 @@
 import pandas as pd
 from datetime import datetime
-from utils.utils_date import time_to_minutes_2, time_to_minutes, minute_to_date, minute_to_date2
+from utils.utils_date import time_to_minutes_2, time_to_minutes, minute_to_date
 
 def load_data(fichier):
     """Load the data from the Excel file"""
