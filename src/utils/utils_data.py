@@ -36,9 +36,10 @@ def add_time_reference(fichier):
     j1, jours,first_day = calculate_delta_days(sillons_depart_df,sillons_arrivee_df)
     return chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df, j1, jours,first_day
 
-def format_trains(machines_df, sillons_arrivee_df, sillons_depart_df, j1, jours,day_1):
+def format_trains(machines_df, sillons_arrivee_df, sillons_depart_df, chantiers_df, j1, jours,day_1):
     """Process the trains data and create the list of trains with their arrival and departure times"""
     machines = ['DEB', 'FOR', 'DEG']
+    chantiers = chantiers_df['Chantier'].to_list()
     machines_durees = machines_df['Duree '].to_list()
     trains_arr = []
     trains_dep = []
@@ -49,8 +50,9 @@ def format_trains(machines_df, sillons_arrivee_df, sillons_depart_df, j1, jours,
         trains_dep.append(('DEP', train['n°TRAIN'], time_to_minutes_2(train['JDEP'], train['HDEP'], j1,day_1)))
 
     trains = trains_arr + trains_dep
-    minutes = list(range(0, 24 * 60 * (jours+1))) 
-    return trains, trains_arr, trains_dep, minutes, machines, machines_durees
+    minutes = list(range(0, 24 * 60 * (jours+1)))
+    minute_slots = list(range(0,24*4*(jours+1)))
+    return trains, trains_arr, trains_dep, minutes, machines, machines_durees, minute_slots, chantiers
 
 def unavailable_machines(machines_df, jours,day_1):
     """Process the unavailable periods for each machine"""
