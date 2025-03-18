@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 from datetime import datetime
 from utils.utils_date import time_to_minutes_2, time_to_minutes, minute_to_date, minute_to_date2
 
@@ -9,7 +10,9 @@ def load_data(fichier):
     sillons_arrivee_df = pd.read_excel(fichier, sheet_name='Sillons arrivee')
     sillons_depart_df = pd.read_excel(fichier, sheet_name='Sillons depart')
     correspondances_df = pd.read_excel(fichier, sheet_name='Correspondances')
-    return chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df
+    taches_humaines_df = pd.read_excel(fichier, sheet_name='Taches humaines')
+    roulements_agents_df = pd.read_excel(fichier, sheet_name='Roulements agents')
+    return chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df, taches_humaines_df,roulements_agents_df
 
 def calculate_delta_days(sillons_depart_df,sillons_arrivee_df):
     """Calculate the number of days between the first and last event"""
@@ -32,9 +35,9 @@ def calculate_delta_days(sillons_depart_df,sillons_arrivee_df):
 
 def add_time_reference(fichier):
     """Add the time reference to the data"""
-    chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df = load_data(fichier)
+    chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df,taches_humaines_df,roulements_agents_df = load_data(fichier)
     j1, jours,first_day = calculate_delta_days(sillons_depart_df,sillons_arrivee_df)
-    return chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df, j1, jours,first_day
+    return chantiers_df, machines_df, sillons_arrivee_df, sillons_depart_df, correspondances_df, taches_humaines_df,roulements_agents_df, j1, jours,first_day
 
 def format_trains(machines_df, sillons_arrivee_df, sillons_depart_df, chantiers_df, j1, jours,day_1):
     """Process the trains data and create the list of trains with their arrival and departure times"""
@@ -53,6 +56,32 @@ def format_trains(machines_df, sillons_arrivee_df, sillons_depart_df, chantiers_
     minutes = list(range(0, 24 * 60 * (jours+1)))
     minute_slots = list(range(0,24*4*(jours+1)))
     return trains, trains_arr, trains_dep, minutes, machines, machines_durees, minute_slots, chantiers
+
+def format_taches_humaines(taches_humaines_df, roulements_agents_df, jours,day_1):
+    """Process the human tasks data and creates a list of the order of the task and the duration"""
+    arr_taches = []
+    dep_taches = []
+    for x, tache in taches_humaines_df.iterrows():
+        if tache['Type de train'] == 'ARR':
+            arr_taches.append([tache['Ordre'], tache['Durée'], tache['Chantier']])
+        elif tache['Type de train'] == 'DEP':
+            dep_taches.append([tache['Ordre'], tache['Durée'], tache['Chantier']])
+    arr_taches = np.array(arr_taches)
+    dep_taches = np.array(dep_taches)
+
+    envelopes_agents = {}
+    for x, roulement in roulements_agents_df.iterrows():
+        jours_semaine = roulement['Jours de la semaine'].split(';')
+        cycle_horaires = roulement['Cycles horaires'].split(';')
+        roulement_name = roulement['Roulement']
+        envelopes_agents[roulement_name] = []
+        for i in range(len(cycle_horaires)):
+            day_of_week = jours_semaine[i]
+            start_time = time_to_minutes(day_of_week, cycle_horaires[i].split('-')[0], jours,day_1)
+            end_time = time_to_minutes(day_of_week, cycle_horaires[i].split('-')[1], jours,day_1)
+            envelopes_agents[roulement_name].append((start_time, end_time))       
+
+    return arr_taches, dep_taches, envelopes_agents
 
 def unavailable_machines(machines_df, jours,day_1):
     """Process the unavailable periods for each machine"""

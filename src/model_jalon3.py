@@ -1,7 +1,7 @@
 from gurobipy import Model, GRB, quicksum
 import pandas as pd
 from utils.utils_data import (
-    format_trains, add_time_reference, unavailable_machines, correspondance_for_depart, unavailable_chantiers, find_max_voies
+    format_trains, add_time_reference, unavailable_machines, correspondance_for_depart, unavailable_chantiers, find_max_voies, format_taches_humaines
 )
 from utils.utils_date import minute_to_date2
 from pathlib import Path
@@ -31,7 +31,8 @@ class ModelJalon3:
         """Load and process input data."""
         (
             self.chantiers_df, self.machines_df, self.sillons_arrivee_df,
-            self.sillons_depart_df, self.correspondances_df, self.j1, self.jours, self.first_day
+            self.sillons_depart_df, self.correspondances_df, self.taches_humaines_df, self.roulements_agents_df,
+            self.j1, self.jours, self.first_day
         ) = add_time_reference(self.fichier)
         
         (
@@ -46,7 +47,11 @@ class ModelJalon3:
         self.unavailable_periods_chantiers, self.start_times_chantiers = unavailable_chantiers(self.chantiers_df, self.jours, self.first_day)
         self.trains_requis_dict = correspondance_for_depart(self.trains_dep, self.trains_arr, self.correspondances_df, self.j1)
         self.max_voies = find_max_voies(self.chantiers_df)
+        self.arr_taches, self.dep_taches, self.envelopes_agents = format_taches_humaines(self.taches_humaines_df, self.roulements_agents_df, self.jours, self.first_day)
         print('Data loaded')
+        print(self.arr_taches)
+        print(self.dep_taches)
+        print(self.envelopes_agents)
 
     def _define_variables(self):
         """Define model variables."""
@@ -56,6 +61,9 @@ class ModelJalon3:
             self.a = self.model.addVars(self.trains_arr, lb=0, ub=max(self.minutes), vtype=GRB.INTEGER, name="a")
             self.b = self.model.addVars(self.trains_dep, lb=0, ub=max(self.minutes), vtype=GRB.INTEGER, name="b")
             self.c = self.model.addVars(self.trains_dep, lb=0, ub=max(self.minutes), vtype=GRB.INTEGER, name="c")
+
+            self.th_arr = self.model.addVars(self.trains_arr, self.arr_taches[:,0], vtype=GRB.INTEGER, name="th_arr")
+            self.th_dep = self.model.addVars(self.trains_dep, self.dep_taches[:,0], vtype=GRB.INTEGER, name="th_dep")
         
         def define_auxiliary_variables(self):
             """Define auxiliary variables for the optimization model. To ensure that a,b,c are all 15 minutes."""
