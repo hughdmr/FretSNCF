@@ -490,13 +490,16 @@ class ModelJalon2:
             df_results = pd.DataFrame(results)
             df_voies = pd.DataFrame(voies,index =self.chantiers)
             sheet_names = ["Taches machine","Voies utilisation"]
+            
             file_name = Path(self.fichier).stem
-            results_file_path = f'{self.results_folder_save_path}/results_{file_name}.xlsx'
+            results_file_path = f'{self.results_folder_save_path}/results_{file_name}_jalon2.xlsx'
+            
             df_results.to_excel(results_file_path,sheet_name=sheet_names[0], index=False)
-            df_voies.to_excel(f'{self.results_folder_save_path}/results_{file_name}_voies.xlsx',sheet_name=sheet_names[1], index=True)
-            print(f'Results saved to {self.results_folder_save_path}/results_{file_name}.xlsx')
-            gantt_image_save_path = f"{self.results_folder_save_path}/gantt_{file_name}.png"
-            sankey_image_save_path = f"{self.results_folder_save_path}/sankey_{file_name}.png"
+            df_voies.to_excel(f'{self.results_folder_save_path}/results_{file_name}_voies_jalon2.xlsx',sheet_name=sheet_names[1], index=True)
+            print(f'Results saved to {results_file_path}')
+            
+            gantt_image_save_path = f"{self.results_folder_save_path}/gantt_{file_name}_jalon2.png"
+            sankey_image_save_path = f"{self.results_folder_save_path}/sankey_{file_name}_jalon2.png"
             display_gantt(results_file_path, gantt_image_save_path)
             display_sankey(self.fichier, sankey_image_save_path)
             return df_results

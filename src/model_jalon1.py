@@ -292,8 +292,8 @@ class ModelJalon1:
             # Create a DataFrame from the results
             df_results = pd.DataFrame(results)
             file_name = Path(self.fichier).stem
-            df_results.to_excel(f'{self.results_folder_save_path}/results_{file_name}.xlsx', index=False, sheet_name="Taches machine")
-            print(f'Results saved to {self.results_folder_save_path}/results_{file_name}.xlsx')
+            df_results.to_excel(f'{self.results_folder_save_path}/results_{file_name}_jalon1.xlsx', index=False, sheet_name="Taches machine")
+            print(f'Results saved to {self.results_folder_save_path}/results_{file_name}_jalon1.xlsx')
 
             return df_results
         else:
