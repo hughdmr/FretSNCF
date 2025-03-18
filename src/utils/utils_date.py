@@ -37,6 +37,18 @@ def time_to_minutes_2(date_str, time_str, jour1,day_1):
     total_minutes = number_day * 24 * 60 + time_obj.hour * 60 + time_obj.minute
     return total_minutes
 
+def time_to_minutes_3(date_str, time_str, day_1):
+    """Convert the time to minutes"""
+    number_day = int(date_str)-1 - day_1
+
+    if type(time_str) == str:
+        time_obj = datetime.strptime(time_str.strip(), "%H:%M")
+    elif type(time_str) == time:
+        time_obj = time_str
+    
+    total_minutes = number_day * 24 * 60 + time_obj.hour * 60 + time_obj.minute
+    return total_minutes
+
 def minute_to_date(minutes, jour1):
     """Convert the minutes to a date"""
     jour = jour1 + timedelta(minutes//(24*60))

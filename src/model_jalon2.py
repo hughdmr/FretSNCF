@@ -33,7 +33,8 @@ class ModelJalon2:
         """Load and process input data."""
         (
             self.chantiers_df, self.machines_df, self.sillons_arrivee_df,
-            self.sillons_depart_df, self.correspondances_df, self.j1, self.jours, self.first_day
+            self.sillons_depart_df, self.correspondances_df, self.taches_humaines_df, self.roulements_agents_df,
+            self.j1, self.jours, self.first_day
         ) = add_time_reference(self.fichier)
         
         (
