@@ -1,0 +1,14 @@
+\ Model model_mini_instance_jalon2.lp_copy
+\ LP format - for model browsing. Use MPS format to capture full model detail.
+\ Signature: 0x833cd2eb3837651a
+Minimize
+ 
+Subject To
+ R1: b[DEP,sillon4,-180] + 1440 e[DEP,sillon4,-180,0,6540,FOR] >= 6541
+Bounds
+ -infinity <= b[DEP,sillon4,-180] <= 1439
+Binaries
+ e[DEP,sillon4,-180,0,6540,FOR]
+Generals
+ b[DEP,sillon4,-180]
+End

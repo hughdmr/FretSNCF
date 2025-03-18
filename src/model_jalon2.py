@@ -1,27 +1,29 @@
-# COPY OF model_jalon1.py, WILL BE UPDATED FOR JALON2.
-
 from gurobipy import Model, GRB, quicksum
 import pandas as pd
 from utils.utils_data import (
     format_trains, add_time_reference, unavailable_machines, correspondance_for_depart, unavailable_chantiers, find_max_voies
 )
 from utils.utils_date import minute_to_date2
+from utils.display_gantt import display_gantt
+from utils.display_sankey import display_sankey
 from pathlib import Path
 from dotenv import load_dotenv
 import os
 import time as tme
 
 class ModelJalon2:
+    """Optimization model for Jalon 2."""
     def __init__(self):
         """Initialize the optimization model."""
         self.start_program_time = tme.time()
         load_dotenv(override=True)
-        self.model_name = os.getenv('MODEL_JALON1_NAME')
+        self.model_name = os.getenv('MODEL_NAME')
         self.model_save_path = os.getenv('MODEL_SAVE_PATH')
         self.results_folder_save_path = os.getenv('RESULTS_FOLDER_SAVE_PATH')
         self.fichier = os.getenv('FILE_INSTANCE')
 
         self.model = Model(self.model_name)
+        self.model.setParam("OutputFlag", 0)
         self._load_data()
         self.data_loaded_time = tme.time()
         self._define_variables()
@@ -53,13 +55,13 @@ class ModelJalon2:
     def _define_variables(self):
         """Define model variables."""
         
-        def define_decision_variables(self):
+        def define_decision_variables():
             """Define decision variables for the optimization model."""
             self.a = self.model.addVars(self.trains_arr, lb=0, ub=max(self.minutes), vtype=GRB.INTEGER, name="a")
             self.b = self.model.addVars(self.trains_dep, lb=0, ub=max(self.minutes), vtype=GRB.INTEGER, name="b")
             self.c = self.model.addVars(self.trains_dep, lb=0, ub=max(self.minutes), vtype=GRB.INTEGER, name="c")
         
-        def define_auxiliary_variables(self):
+        def define_auxiliary_variables():
             """Define auxiliary variables for the optimization model. To ensure that a,b,c are all 15 minutes."""
             self.aint = self.model.addVars(self.trains_arr, vtype=GRB.INTEGER, name="aint")
             self.bint = self.model.addVars(self.trains_dep, vtype=GRB.INTEGER, name="bint")
@@ -70,7 +72,7 @@ class ModelJalon2:
             self.for_max = self.model.addVar(vtype=GRB.INTEGER, name="FOR_Max_voies")
             self.dep_max = self.model.addVar(vtype=GRB.INTEGER, name="DEP_Max_voies")
 
-        def define_binary_variables(self):
+        def define_binary_variables():
             """Define binary variables for the optimization model."""
             self.d = self.model.addVars(self.trains_arr, 2, self.start_times, vtype=GRB.BINARY, name="d")
             self.e = self.model.addVars(self.trains_dep, 2, self.start_times, vtype=GRB.BINARY, name="e")
@@ -100,9 +102,9 @@ class ModelJalon2:
             self.dep_x = self.model.addVars(self.trains_dep, self.minute_slots, vtype=GRB.BINARY, name="dep_x")
             self.dep_y = self.model.addVars(self.trains_dep, self.minute_slots, vtype=GRB.BINARY, name="dep_y")
 
-        define_decision_variables(self)
-        define_auxiliary_variables(self)
-        define_binary_variables(self)
+        define_decision_variables()
+        define_auxiliary_variables()
+        define_binary_variables()
         print('Variables defined')
 
     def _define_constraints(self):
@@ -247,7 +249,7 @@ class ModelJalon2:
 
             print("Constraint 7: Task time slots defined.")
 
-        def define_REC_occupation_relation_constraints(self):
+        def define_REC_occupation_relation_constraints():
             """Constraint 8.1: Relate binary variables for occupation to the start time of each machine"""
             for minute in self.minute_slots:
                 for train in self.trains_arr:
@@ -278,7 +280,7 @@ class ModelJalon2:
                     )
             print("8.1: Occupation variables REC related to start time defined.")
         
-        def define_FOR_occupation_relation_constraints(self):
+        def define_FOR_occupation_relation_constraints():
             """Constraint 8.2: Relate binary variables for occupation to the start time of each machine"""
             for minute in self.minute_slots:
                 for train in self.trains_arr:
@@ -335,7 +337,7 @@ class ModelJalon2:
                     )
             print("8.2: Occupation variables FOR related to start time defined.")
 
-        def define_DEP_occupation_relation_constraints(self):
+        def define_DEP_occupation_relation_constraints():
             """Constraint 8.3: Relate binary variables for occupation to the start time of each machine"""
             for minute in self.minute_slots:
                 for train in self.trains_dep:
@@ -366,7 +368,7 @@ class ModelJalon2:
                     )
             print("8.3: Occupation variables DEP related to start time defined.")
         
-        def max_voies_constraint():
+        def define_max_voies_constraint():
             """Constraint 9: Ensure that no more than max_voies are used at any time."""
             for minute in self.minute_slots:
                 self.model.addConstr(
@@ -399,14 +401,13 @@ class ModelJalon2:
                     name=f"dep_max_constraint_{minute}"
                 )
             print("10: Maximum voies used calculated.")
-                
   
         define_unavailability_machines_constraints()
-        max_voies_constraint()
+        define_max_voies_constraint()
         calculate_max_voies_used()
-        define_REC_occupation_relation_constraints(self)
-        define_FOR_occupation_relation_constraints(self)
-        define_DEP_occupation_relation_constraints(self)
+        define_REC_occupation_relation_constraints()
+        define_FOR_occupation_relation_constraints()
+        define_DEP_occupation_relation_constraints()
         define_unavailability_chantier_constraints()
         define_single_train_per_machine_constraints()
         define_deb_usage_delay_constraint()
@@ -414,14 +415,13 @@ class ModelJalon2:
         define_for_after_deb_constraint()
         define_for_before_deg_constraint()
         define_task_time_slots_constraint()
-        
-        
-        
 
         print('Constraints defined')
     
     def _define_objective_function(self):
-        self.model.setObjective(self.for_max, GRB.MINIMIZE)  # Minimise taux d'occupation des voies de chantier FOR
+        """Define the objective function for the optimization model.
+        Minimise taux d'occupation des voies de chantier FOR"""
+        self.model.setObjective(self.for_max, GRB.MINIMIZE)
         print('Objective function defined')
 
     def optimize(self):
@@ -491,12 +491,14 @@ class ModelJalon2:
             df_voies = pd.DataFrame(voies,index =self.chantiers)
             sheet_names = ["Taches machine","Voies utilisation"]
             file_name = Path(self.fichier).stem
-            #writer = pd.ExcelWriter(f'{self.results_folder_save_path}/results_{file_name}.xlsx')
-            df_results.to_excel(f'{self.results_folder_save_path}/results_{file_name}.xlsx',sheet_name=sheet_names[0], index=False)
+            results_file_path = f'{self.results_folder_save_path}/results_{file_name}.xlsx'
+            df_results.to_excel(results_file_path,sheet_name=sheet_names[0], index=False)
             df_voies.to_excel(f'{self.results_folder_save_path}/results_{file_name}_voies.xlsx',sheet_name=sheet_names[1], index=True)
-            #df_voies.to_excel(writer, sheet_name=sheet_names[1], index=False)
             print(f'Results saved to {self.results_folder_save_path}/results_{file_name}.xlsx')
-
+            gantt_image_save_path = f"{self.results_folder_save_path}/gantt_{file_name}.png"
+            sankey_image_save_path = f"{self.results_folder_save_path}/sankey_{file_name}.png"
+            display_gantt(results_file_path, gantt_image_save_path)
+            display_sankey(self.fichier, sankey_image_save_path)
             return df_results
         else:
             print("No optimal solution found")

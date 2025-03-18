@@ -1,13 +1,5 @@
-import os
-
 import plotly.graph_objects as go
 import pandas as pd
-from dotenv import load_dotenv
-
-ORDERED_MACHINES = ["Debranchement", "Formation", "Degarage"]
-CORRESPONDANCES_SHEET = "Correspondances"
-
-
 class CorrespondanceColumnNames:
     WAGON_ID = "Id wagon"
     ARRIVAL_DATE = "Jour arrivee"
@@ -21,12 +13,10 @@ class CorrespondanceColumnNames:
 def get_link_id(arrival_train_id, departure_train_id):
     return f"{arrival_train_id} {departure_train_id}"
 
+def display_sankey(results_file_path, sankey_image_save_path, save_image=True, show_image=False):
+    CORRESPONDANCES_SHEET = "Correspondances"
 
-if __name__ == "__main__":
-    load_dotenv()
-    FILE_INSTANCE = os.getenv("FILE_INSTANCE")
-    input_file_path = FILE_INSTANCE
-    input_directory_path = r"..\données_MAJ"
+    input_file_path = results_file_path
 
     filter_on_departure_date = True
     departure_date_filter = "13/08/2022"
@@ -107,5 +97,10 @@ if __name__ == "__main__":
                           'au sillon "%{target.label}"<br /><extra></extra>',
         )
     ))
-
-    fig.show()
+    if save_image:
+        fig.write_image(sankey_image_save_path)
+    if show_image:
+        fig.show()
+    
+if __name__ == '__main__':
+    display_sankey("results.xlsx", "display.png", False, True)
