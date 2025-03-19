@@ -8,3 +8,4 @@ if __name__ == '__main__':
         print(f"Model created successfully for instance.")
     except Exception as e:
         print(f"An error occurred while creating the model: {e}")
+        raise

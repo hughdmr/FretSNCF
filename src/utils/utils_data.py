@@ -5,6 +5,7 @@ from utils.utils_date import time_to_minutes_2, time_to_minutes, minute_to_date,
 
 def load_data(fichier):
     """Load the data from the Excel file"""
+
     chantiers_df = pd.read_excel(fichier, sheet_name='Chantiers')
     machines_df = pd.read_excel(fichier, sheet_name='Machines')
     sillons_arrivee_df = pd.read_excel(fichier, sheet_name='Sillons arrivee')
@@ -75,11 +76,12 @@ def format_taches_humaines(taches_humaines_df, roulements_agents_df, jours,day_1
         cycle_horaires = roulement['Cycles horaires'].split(';')
         roulement_name = roulement['Roulement']
         envelopes_agents[roulement_name] = []
-        for i in range(len(cycle_horaires)):
-            day_of_week = jours_semaine[i]
-            start_time = time_to_minutes(day_of_week, cycle_horaires[i].split('-')[0], jours,day_1)
-            end_time = time_to_minutes(day_of_week, cycle_horaires[i].split('-')[1], jours,day_1)
-            envelopes_agents[roulement_name].append((start_time, end_time))       
+        for j in range(len(jours_semaine)):
+            for i in range(len(cycle_horaires)):
+                day_of_week = jours_semaine[j]
+                start_time = time_to_minutes(day_of_week, cycle_horaires[i].split('-')[0], jours,day_1)
+                end_time = time_to_minutes(day_of_week, cycle_horaires[i].split('-')[1], jours,day_1)
+                envelopes_agents[roulement_name].append((start_time, end_time))       
 
     return arr_taches, dep_taches, envelopes_agents
 
