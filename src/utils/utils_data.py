@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from utils.utils_date import time_to_minutes_2, time_to_minutes, minute_to_date, minute_to_date2
+from utils.utils_date import time_to_minutes_2, time_to_minutes, minute_to_date, minute_to_date2, time_to_minutes_3
 
 def load_data(fichier):
     """Load the data from the Excel file"""
@@ -58,7 +58,7 @@ def format_trains(machines_df, sillons_arrivee_df, sillons_depart_df, chantiers_
     minute_slots = list(range(0,24*4*(jours+1)))
     return trains, trains_arr, trains_dep, minutes, machines, machines_durees, minute_slots, chantiers
 
-def format_taches_humaines(taches_humaines_df, roulements_agents_df, jours,day_1):
+def format_taches_humaines(taches_humaines_df, roulements_agents_df, jours,day_1, minute_slots):
     """Process the human tasks data and creates a list of the order of the task and the duration"""
     arr_taches = []
     dep_taches = []
@@ -71,19 +71,59 @@ def format_taches_humaines(taches_humaines_df, roulements_agents_df, jours,day_1
     dep_taches = np.array(dep_taches)
 
     envelopes_agents = {}
+    nombre_agents = []
     for x, roulement in roulements_agents_df.iterrows():
+        nombre_agents.append(roulement['Nombre agents'])
         jours_semaine = roulement['Jours de la semaine'].split(';')
+        jours_semaine = [int(jour) for jour in jours_semaine] + [(int(jour) + 7) for jour in jours_semaine]
         cycle_horaires = roulement['Cycles horaires'].split(';')
+        cycles = []
+        for cycle in cycle_horaires:
+            cycles.append((cycle.split('-')[0], cycle.split('-')[1]))
         roulement_name = roulement['Roulement']
         envelopes_agents[roulement_name] = []
-        for j in range(len(jours_semaine)):
-            for i in range(len(cycle_horaires)):
-                day_of_week = jours_semaine[j]
-                start_time = time_to_minutes(day_of_week, cycle_horaires[i].split('-')[0], jours,day_1)
-                end_time = time_to_minutes(day_of_week, cycle_horaires[i].split('-')[1], jours,day_1)
-                envelopes_agents[roulement_name].append((start_time, end_time))       
+        possible_days = list(range(day_1, jours+day_1))
+        for i in possible_days:
+            for j in jours_semaine:
+                if i == (j-1):
+                    for (start_time,end_time) in cycles:
+                        day_of_period = i - day_1
+                        start = time_to_minutes_3(day_of_period, start_time,day_1)
+                        end = time_to_minutes_3(day_of_period, end_time,day_1)
+                        if end < start:
+                            end = time_to_minutes_3(day_of_period+1, end_time,day_1)
+                        envelopes_agents[roulement_name].append((start, end))
 
-    return arr_taches, dep_taches, envelopes_agents
+    nombre_agents = np.array(nombre_agents)
+
+    max_agents = {}
+    for minute in minute_slots:
+        max_agents['reception', minute] = 0
+        for (start, end) in envelopes_agents['roulement_reception']:
+            if start <= minute < end:
+                max_agents['reception', minute] += nombre_agents[0]
+        for (start2, end2) in envelopes_agents['roulement_reception_depart']:
+            if start2 <= minute < end2:
+                max_agents['reception', minute] += nombre_agents[3]
+        max_agents['formation', minute] = 0
+        for (start, end) in envelopes_agents['roulement_formation']:
+            if start <= minute < end:
+                max_agents['formation', minute] += nombre_agents[1]
+        for (start2, end2) in envelopes_agents['roulement_formation_depart']:
+            if start2 <= minute < end2:
+                max_agents['formation', minute] += nombre_agents[4]
+        max_agents['depart', minute] = 0
+        for (start, end) in envelopes_agents['roulement_depart']:
+            if start <= minute < end:
+                max_agents['depart', minute] += nombre_agents[2]
+        for (start2, end2) in envelopes_agents['roulement_reception_depart']:
+            if start2 <= minute < end2:
+                max_agents['depart', minute] += nombre_agents[3]
+        for (start3, end3) in envelopes_agents['roulement_formation_depart']:
+            if start3 <= minute < end3:
+                max_agents['depart', minute] += nombre_agents[4]
+
+    return arr_taches, dep_taches, envelopes_agents, nombre_agents, max_agents
 
 def unavailable_machines(machines_df, jours,day_1):
     """Process the unavailable periods for each machine"""

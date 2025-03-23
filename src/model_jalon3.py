@@ -48,14 +48,13 @@ class ModelJalon3:
         self.unavailable_periods_chantiers, self.start_times_chantiers = unavailable_chantiers(self.chantiers_df, self.jours, self.first_day)
         self.trains_requis_dict = correspondance_for_depart(self.trains_dep, self.trains_arr, self.correspondances_df, self.j1)
         self.max_voies = find_max_voies(self.chantiers_df)
-        self.arr_taches, self.dep_taches, self.envelopes_agents = format_taches_humaines(self.taches_humaines_df, self.roulements_agents_df, self.jours, self.first_day)
+        self.arr_taches, self.dep_taches, self.envelopes_agents, self.nombre_agents, self.max_agents = format_taches_humaines(self.taches_humaines_df, self.roulements_agents_df, self.jours, self.first_day, self.minute_slots)
         self.arr_orders = np.array(self.arr_taches[:,0]).astype(int)
         self.dep_orders = np.array(self.dep_taches[:,0]).astype(int)
         self.arr_durees = np.array(self.arr_taches[:,1]).astype(int)
         self.dep_durees = np.array(self.dep_taches[:,1]).astype(int)
+        self.orders = np.concatenate((self.arr_orders, self.dep_orders))
         print('Data loaded')
-        print(self.arr_orders)
-        print(self.trains_arr)
 
     def _define_variables(self):
         """Define model variables."""
@@ -68,6 +67,21 @@ class ModelJalon3:
 
             self.th_arr = self.model.addVars(self.trains_arr, self.arr_orders, lb=0, ub=max(self.minutes), vtype=GRB.INTEGER, name="th_arr")
             self.th_dep = self.model.addVars(self.trains_dep, self.dep_orders, lb=0, ub=max(self.minutes), vtype=GRB.INTEGER, name="th_dep")
+
+            # 1 if task assigned to envelope, 0 if not; access using the nb of the envelope as defined in envelopes_agents
+            self.envelope_taches_REC = self.model.addVars(len(self.envelopes_agents['roulement_reception']),self.trains_arr,self.arr_orders, vtype=GRB.BINARY, name="envelope_taches_REC")
+            self.envelope_taches_FOR = self.model.addVars(len(self.envelopes_agents['roulement_formation']),self.trains_dep,self.dep_orders, vtype=GRB.BINARY, name="envelope_taches_FOR")
+            self.envelope_taches_DEP = self.model.addVars(len(self.envelopes_agents['roulement_depart']),self.trains_dep,self.dep_orders, vtype=GRB.BINARY, name="envelope_taches_DEP")
+            self.envelope_taches_REC_DEP = self.model.addVars(len(self.envelopes_agents['roulement_reception_depart']),self.trains,self.dep_orders, vtype=GRB.BINARY, name="envelope_taches_REC_DEP")
+            self.envelope_taches_FOR_DEP = self.model.addVars(len(self.envelopes_agents['roulement_formation_depart']),self.trains,self.dep_orders, vtype=GRB.BINARY, name="envelope_taches_FOR_DEP")
+
+            # 1 if envelope used, 0 if not
+            self.envelope_used_REC = self.model.addVars(len(self.envelopes_agents['roulement_reception']), vtype=GRB.BINARY, name="envelope_used_REC")
+            self.envelope_used_FOR = self.model.addVars(len(self.envelopes_agents['roulement_formation']), vtype=GRB.BINARY, name="envelope_used_FOR")
+            self.envelope_used_DEP = self.model.addVars(len(self.envelopes_agents['roulement_depart']), vtype=GRB.BINARY, name="envelope_used_DEP")
+            self.envelope_used_REC_DEP = self.model.addVars(len(self.envelopes_agents['roulement_reception_depart']), vtype=GRB.BINARY, name="envelope_used_REC_DEP")
+            self.envelope_used_FOR_DEP = self.model.addVars(len(self.envelopes_agents['roulement_formation_depart']), vtype=GRB.BINARY, name="envelope_used_FOR_DEP")
+            self.envelope_used_total = self.model.addVar(vtype=GRB.INTEGER, name="envelope_used_total")
         
         def define_auxiliary_variables(self):
             """Define auxiliary variables for the optimization model. To ensure that tasks are only every 15 minutes."""
@@ -79,6 +93,14 @@ class ModelJalon3:
             self.rec_max = self.model.addVar(vtype=GRB.INTEGER, name="REC_Max_voies")
             self.for_max = self.model.addVar(vtype=GRB.INTEGER, name="FOR_Max_voies")
             self.dep_max = self.model.addVar(vtype=GRB.INTEGER, name="DEP_Max_voies")
+
+            # check if task is in progress for every minute
+            self.task_in_progress_arr = self.model.addVars(self.trains_arr, self.arr_orders, self.minute_slots, vtype=GRB.BINARY, name="task_in_progress_arr")
+            self.task_in_progress_dep = self.model.addVars(self.trains_dep, self.dep_orders, self.minute_slots, vtype=GRB.BINARY, name="task_in_progress_dep")
+
+            # simulaneous tasks for every minute
+            self.simulaneous_tasks_arr = self.model.addVars(self.minute_slots, vtype=GRB.BINARY, name="simulaneous_tasks_arr")
+            self.simulaneous_tasks_dep = self.model.addVars(self.minute_slots, vtype=GRB.BINARY, name="simulaneous_tasks_dep")
 
         def define_binary_variables(self):
             """Define binary variables for the optimization model."""
@@ -112,8 +134,24 @@ class ModelJalon3:
 
             self.th_arr_unavail = self.model.addVars(self.trains_arr, self.arr_orders, self.start_times_chantiers, 2, vtype=GRB.BINARY, name="th_arr_unavail")
             self.th_dep_unavail = self.model.addVars(self.trains_dep, self.dep_orders, self.start_times_chantiers, 2, vtype=GRB.BINARY, name="th_dep_unavail")
-            print(self.trains_dep, self.dep_orders,self.start_times_chantiers)
 
+            self.envelope_taches_REC_x = self.model.addVars(len(self.envelopes_agents['roulement_reception']),self.trains_arr,self.arr_orders, vtype=GRB.BINARY, name="envelope_taches_REC")
+            self.envelope_taches_REC_y = self.model.addVars(len(self.envelopes_agents['roulement_reception']),self.trains_arr,self.arr_orders, vtype=GRB.BINARY, name="envelope_taches_REC")
+            self.envelope_taches_FOR_x = self.model.addVars(len(self.envelopes_agents['roulement_formation']),self.trains_dep,self.dep_orders, vtype=GRB.BINARY, name="envelope_taches_FOR")
+            self.envelope_taches_FOR_y = self.model.addVars(len(self.envelopes_agents['roulement_formation']),self.trains_dep,self.dep_orders, vtype=GRB.BINARY, name="envelope_taches_FOR")
+            self.envelope_taches_DEP_x = self.model.addVars(len(self.envelopes_agents['roulement_depart']),self.trains_dep,self.dep_orders, vtype=GRB.BINARY, name="envelope_taches_DEP")
+            self.envelope_taches_DEP_y = self.model.addVars(len(self.envelopes_agents['roulement_depart']),self.trains_dep,self.dep_orders, vtype=GRB.BINARY, name="envelope_taches_DEP")
+            self.envelope_taches_REC_DEP_x = self.model.addVars(len(self.envelopes_agents['roulement_reception_depart']),self.trains,self.dep_orders, vtype=GRB.BINARY, name="envelope_taches_REC_DEP")
+            self.envelope_taches_REC_DEP_y = self.model.addVars(len(self.envelopes_agents['roulement_reception_depart']),self.trains,self.dep_orders, vtype=GRB.BINARY, name="envelope_taches_REC_DEP")
+            self.envelope_taches_FOR_DEP_x = self.model.addVars(len(self.envelopes_agents['roulement_formation_depart']),self.trains,self.dep_orders, vtype=GRB.BINARY, name="envelope_taches_FOR_DEP")
+            self.envelope_taches_FOR_DEP_y = self.model.addVars(len(self.envelopes_agents['roulement_formation_depart']),self.trains,self.dep_orders, vtype=GRB.BINARY, name="envelope_taches_FOR_DEP")
+
+            
+
+            self.task_in_progress_arr_x = self.model.addVars(self.trains_arr, self.arr_orders, self.minute_slots, vtype=GRB.BINARY, name="task_in_progress_arr_x")
+            self.task_in_progress_arr_y = self.model.addVars(self.trains_arr, self.arr_orders, self.minute_slots, vtype=GRB.BINARY, name="task_in_progress_arr_y")
+            self.task_in_progress_dep_x = self.model.addVars(self.trains_dep, self.dep_orders, self.minute_slots, vtype=GRB.BINARY, name="task_in_progress_dep_x")
+            self.task_in_progress_dep_y = self.model.addVars(self.trains_dep, self.dep_orders, self.minute_slots, vtype=GRB.BINARY, name="task_in_progress_dep_y")
 
         define_decision_variables(self)
         define_auxiliary_variables(self)
@@ -502,14 +540,426 @@ class ModelJalon3:
             for train in self.trains_dep:
                 self.model.addConstr(self.th_dep[train[0],train[1],train[2],4] + self.dep_durees[3] <= train[2], name=f"constraint_dep_finish_{train}")
             print('19: Frein before departure constraint defined')
-  
+
+
+        #self.envelope_taches_REC = self.model.addVars(len(self.envelopes_agents['roulement_reception']), vtype=GRB.BINARY, name="envelope_taches_REC")
+        def define_envelope_taches_REC_relation_constraints(self):
+            """Constraint 21.1: Assign tasks to shifts for roulement_reception. If (start of envelope) <= t (start of task) <= (end of envelope), then envelope_tache = 1."""
+            for i, (start_time,end_time) in enumerate(self.envelopes_agents['roulement_reception']):
+                for train in self.trains_arr:
+                    for order in self.arr_orders:
+                        order = int(order)
+                        # Chantier REC
+                        # start_time*envelope_tache <= task
+                        self.model.addConstr(
+                            start_time*self.envelope_taches_REC[i,train[0],train[1],train[2],order] <= self.th_arr[train[0],train[1],train[2],order],
+                            name=f"roul_rec_task_after_{start_time}_{train}_{order}"
+                        )
+                        # task <= end_time*envelope_tache + M(1-envelope_tache)
+                        self.model.addConstr(
+                            self.th_arr[train[0],train[1],train[2],order] <= (end_time)*self.envelope_taches_REC[i,train[0],train[1],train[2],order] + self.M*(1-self.envelope_taches_REC[i,train[0],train[1],train[2],order]),
+                            name=f"roul_rec_task_before_{end_time}_{train}_{order}"
+                        )
+                        # task-start_time <= M*x
+                        self.model.addConstr(
+                            (self.th_arr[train[0],train[1],train[2],order] - start_time) <= self.M*self.envelope_taches_REC_x[i,train[0],train[1],train[2],order],
+                            name=f"roul_rec_x_{train}_{order}"
+                        )
+                        # end_time-task <= M*y
+                        self.model.addConstr(
+                            end_time - self.th_arr[train[0],train[1],train[2],order] <= self.M*self.envelope_taches_REC_y[i,train[0],train[1],train[2],order],
+                            name=f"roul_rec_y_{train}_{order}"
+                        )
+                        # envelope_tache >= x+y-1
+                        self.model.addConstr(
+                            self.envelope_taches_REC[i,train[0],train[1],train[2],order] >= self.envelope_taches_REC_x[i,train[0],train[1],train[2],order] + self.envelope_taches_REC_y[i,train[0],train[1],train[2],order] - 1,
+                            name=f"roul_rec_envelope_{start_time}_{train}_{order}"
+                        )
+            print("21.1: Envelope taches roulement_reception relation constraints defined.")
+
+        def define_envelope_taches_FOR_relation_constraints(self):
+            """Constraint 21.2: Assign tasks to shifts for roulement_formation. If (start of envelope) <= t (start of task) <= (end of envelope), then envelope_tache = 1."""
+            for i, (start_time,end_time) in enumerate(self.envelopes_agents['roulement_formation']):
+                for train in self.trains_dep:
+                    for order in self.dep_orders[:-1]:
+                        order = int(order)
+                        # Chantier REC
+                        # start_time*envelope_tache <= task
+                        self.model.addConstr(
+                            start_time*self.envelope_taches_FOR[i,train[0],train[1],train[2],order] <= self.th_dep[train[0],train[1],train[2],order],
+                            name=f"roul_for_task_after_{start_time}_{train}_{order}"
+                        )
+                        # task <= end_time*envelope_tache + M(1-envelope_tache)
+                        self.model.addConstr(
+                            self.th_dep[train[0],train[1],train[2],order] <= (end_time)*self.envelope_taches_FOR[i,train[0],train[1],train[2],order] + self.M*(1-self.envelope_taches_FOR[i,train[0],train[1],train[2],order]),
+                            name=f"roul_for_task_before_{end_time}_{train}_{order}"
+                        )
+                        # task-start_time <= M*x
+                        self.model.addConstr(
+                            (self.th_dep[train[0],train[1],train[2],order] - start_time) <= self.M*self.envelope_taches_FOR_x[i,train[0],train[1],train[2],order],
+                            name=f"roul_for_x_{train}_{order}"
+                        )
+                        # end_time-task <= M*y
+                        self.model.addConstr(
+                            end_time - self.th_dep[train[0],train[1],train[2],order] <= self.M*self.envelope_taches_FOR_y[i,train[0],train[1],train[2],order],
+                            name=f"roul_for_y_{train}_{order}"
+                        )
+                        # envelope_tache >= x+y-1
+                        self.model.addConstr(
+                            self.envelope_taches_FOR[i,train[0],train[1],train[2],order] >= self.envelope_taches_FOR_x[i,train[0],train[1],train[2],order] + self.envelope_taches_FOR_y[i,train[0],train[1],train[2],order] - 1,
+                            name=f"roul_for_envelope_{start_time}_{train}_{order}"
+                        )
+            print("21.2: Envelope taches roulement_formation relation constraints defined.")
+        
+        def define_envelope_taches_DEP_relation_constraints(self):
+            """Constraint 21.3: Assign tasks to shifts for roulement_depart. If (start of envelope) <= t (start of task) <= (end of envelope), then envelope_tache = 1."""
+            for i, (start_time,end_time) in enumerate(self.envelopes_agents['roulement_depart']):
+                for train in self.trains_dep:
+                    order = 4
+                    # Chantier REC
+                    # start_time*envelope_tache <= task
+                    self.model.addConstr(
+                        start_time*self.envelope_taches_DEP[i,train[0],train[1],train[2],order] <= self.th_dep[train[0],train[1],train[2],order],
+                        name=f"roul_dep_task_after_{start_time}_{train}_{order}"
+                    )
+                    # task <= end_time*envelope_tache + M(1-envelope_tache)
+                    self.model.addConstr(
+                        self.th_dep[train[0],train[1],train[2],order] <= (end_time)*self.envelope_taches_DEP[i,train[0],train[1],train[2],order] + self.M*(1-self.envelope_taches_DEP[i,train[0],train[1],train[2],order]),
+                        name=f"roul_dep_task_before_{end_time}_{train}_{order}"
+                    )
+                    # task-start_time <= M*x
+                    self.model.addConstr(
+                        (self.th_dep[train[0],train[1],train[2],order] - start_time) <= self.M*self.envelope_taches_DEP_x[i,train[0],train[1],train[2],order],
+                        name=f"roul_dep_x_{train}_{order}"
+                    )
+                    # end_time-task <= M*y
+                    self.model.addConstr(
+                        end_time - self.th_dep[train[0],train[1],train[2],order] <= self.M*self.envelope_taches_DEP_y[i,train[0],train[1],train[2],order],
+                        name=f"roul_dep_y_{train}_{order}"
+                    )
+                    # envelope_tache >= x+y-1
+                    self.model.addConstr(
+                        self.envelope_taches_DEP[i,train[0],train[1],train[2],order] >= self.envelope_taches_DEP_x[i,train[0],train[1],train[2],order] + self.envelope_taches_DEP_y[i,train[0],train[1],train[2],order] - 1,
+                        name=f"roul_dep_envelope_{start_time}_{train}_{order}"
+                    )
+            print("21.3: Envelope taches roulement_depart relation constraints defined.")
+        
+        def define_envelope_taches_REC_DEP_relation_constraints(self):
+            """Constraint 21.4: Assign tasks to shifts for roulement_reception_depart. If (start of envelope) <= t (start of task) <= (end of envelope), then envelope_tache = 1."""
+            for i, (start_time,end_time) in enumerate(self.envelopes_agents['roulement_reception_depart']):
+                for train in self.trains:
+                    for order in self.dep_orders:
+                        order = int(order)
+                        if train[0] == 'ARR' and order == 4:
+                            continue
+                        elif train[0] == 'DEP' and (order == 1 or order == 2 or order == 3):
+                            continue
+                        if train[0] == 'ARR':
+                            task = self.th_arr[train[0],train[1],train[2],order]
+                        elif train[0] == 'DEP':
+                            task = self.th_dep[train[0],train[1],train[2],order]
+                        envelope_tache = self.envelope_taches_REC_DEP[i,train[0],train[1],train[2],order]
+                        # Chantier REC
+                        # start_time*envelope_tache <= task
+                        self.model.addConstr(
+                            start_time*envelope_tache <= task,
+                            name=f"roul_rec_dep_task_after_{start_time}_{train}_{order}"
+                        )
+                        # task <= end_time*envelope_tache + M(1-envelope_tache)
+                        self.model.addConstr(
+                            task <= (end_time)*envelope_tache + self.M*(1-envelope_tache),
+                            name=f"roul_rec_dep_task_before_{end_time}_{train}_{order}"
+                        )
+                        # task-start_time <= M*x
+                        self.model.addConstr(
+                            (task - start_time) <= self.M*self.envelope_taches_REC_DEP_x[i,train[0],train[1],train[2],order],
+                            name=f"roul_rec_dep_x_{train}_{order}"
+                        )
+                        # end_time-task <= M*y
+                        self.model.addConstr(
+                            end_time - task <= self.M*self.envelope_taches_REC_DEP_y[i,train[0],train[1],train[2],order],
+                            name=f"roul_rec_dep_y_{train}_{order}"
+                        )
+                        # envelope_tache >= x+y-1
+                        self.model.addConstr(
+                            envelope_tache >= self.envelope_taches_REC_DEP_x[i,train[0],train[1],train[2],order] + self.envelope_taches_REC_DEP_y[i,train[0],train[1],train[2],order] - 1,
+                            name=f"roul_rec_dep_envelope_{start_time}_{train}_{order}"
+                        )
+            print("21.4: Envelope taches roulement_reception_depart relation constraints defined.")
+
+        def define_envelope_taches_FOR_DEP_relation_constraints(self):
+            """Constraint 21.5: Assign tasks to shifts for roulement_formation_depart. If (start of envelope) <= t (start of task) <= (end of envelope), then envelope_tache = 1."""
+            for i, (start_time,end_time) in enumerate(self.envelopes_agents['roulement_formation_depart']):
+                for train in self.trains_dep:
+                    for order in self.dep_orders:
+                        order = int(order)
+                        task = self.th_dep[train[0],train[1],train[2],order]
+                        envelope_tache = self.envelope_taches_FOR_DEP[i,train[0],train[1],train[2],order]
+                        # Chantier REC
+                        # start_time*envelope_tache <= task
+                        self.model.addConstr(
+                            start_time*envelope_tache <= task,
+                            name=f"roul_for_dep_task_after_{start_time}_{train}_{order}"
+                        )
+                        # task <= end_time*envelope_tache + M(1-envelope_tache)
+                        self.model.addConstr(
+                            task <= (end_time)*envelope_tache + self.M*(1-envelope_tache),
+                            name=f"roul_for_dep_task_before_{end_time}_{train}_{order}"
+                        )
+                        # task-start_time <= M*x
+                        self.model.addConstr(
+                            (task - start_time) <= self.M*self.envelope_taches_FOR_DEP_x[i,train[0],train[1],train[2],order],
+                            name=f"roul_for_dep_x_{train}_{order}"
+                        )
+                        # end_time-task <= M*y
+                        self.model.addConstr(
+                            end_time - task <= self.M*self.envelope_taches_FOR_DEP_y[i,train[0],train[1],train[2],order],
+                            name=f"roul_for_dep_y_{train}_{order}"
+                        )
+                        # envelope_tache >= x+y-1
+                        self.model.addConstr(
+                            envelope_tache >= self.envelope_taches_FOR_DEP_x[i,train[0],train[1],train[2],order] + self.envelope_taches_FOR_DEP_y[i,train[0],train[1],train[2],order] - 1,
+                            name=f"roul_for_dep_envelope_{start_time}_{train}_{order}"
+                        )
+            print("21.5: Envelope taches roulement_formation_depart relation constraints defined.")
+        
+        def define_task_in_progress_rec_relation_constraint(self):
+            """22.1: REC For every minute and task, set task_in_progress to 1 if task is in progress at that minute."""  
+            for minute in self.minute_slots:
+                for train in self.trains_arr:
+                    for order in self.arr_orders:
+                        # Chantier REC
+                        start_time = self.th_arr[train[0],train[1],train[2],order]
+                        end_time = self.th_arr[train[0],train[1],train[2],order] + self.arr_durees[order-1]
+                        task_in_progress = self.task_in_progress_arr[train[0],train[1],train[2],order,minute]
+                        # th*in_progress <= minute
+                        self.model.addConstr(
+                            start_time*task_in_progress <= minute,
+                            name=f"task_in_prog_rec_1_{minute}_{train}_{order}"
+                        )
+                        # minute <= th+duree*in_progress + M(1-in_progress)
+                        self.model.addConstr(
+                            minute <= (end_time)*task_in_progress + self.M*(1-task_in_progress),
+                            name=f"task_in_prog_rec_2_{minute}_{train}_{order}"
+                        )
+                        # minute-th <= M*x
+                        self.model.addConstr(
+                            (minute - end_time) <= self.M*self.task_in_progress_arr_x[train[0],train[1],train[2],order,minute],
+                            name=f"task_in_prog_rec_3_{minute}_{train}_{order}"
+                        )
+                        # end_time-task <= M*y
+                        self.model.addConstr(
+                            end_time - minute <= self.M*self.task_in_progress_arr_y[train[0],train[1],train[2],order,minute],
+                            name=f"task_in_prog_rec_4_{minute}_{train}_{order}"
+                        )
+                        # in_progress >= x+y-1
+                        self.model.addConstr(
+                            task_in_progress >= self.task_in_progress_arr_x[train[0],train[1],train[2],order,minute] + self.task_in_progress_arr_y[train[0],train[1],train[2],order,minute] - 1,
+                            name=f"task_in_prog_rec_5_{minute}_{train}_{order}"
+                        )
+            print("23.1: Task in progress relation REC constraint defined.")
+
+        def define_task_in_progress_for_relation_constraint(self):
+            """22.2: FOR For every minute and task, set task_in_progress to 1 if task is in progress at that minute."""  
+            for minute in self.minute_slots:
+                for train in self.trains_dep:
+                    for order in self.dep_orders[:-1]:
+                        # Chantier FOR
+                        start_time = self.th_dep[train[0],train[1],train[2],order]
+                        end_time = self.th_dep[train[0],train[1],train[2],order] + self.dep_durees[order-1]
+                        task_in_progress = self.task_in_progress_dep[train[0],train[1],train[2],order,minute]
+                        # th*in_progress <= minute
+                        self.model.addConstr(
+                            start_time*task_in_progress <= minute,
+                            name=f"task_in_prog_for_1_{minute}_{train}_{order}"
+                        )
+                        # minute <= th+duree*in_progress + M(1-in_progress)
+                        self.model.addConstr(
+                            minute <= (end_time)*task_in_progress + self.M*(1-task_in_progress),
+                            name=f"task_in_prog_for_2_{minute}_{train}_{order}"
+                        )
+                        # minute-th <= M*x
+                        self.model.addConstr(
+                            (minute - end_time) <= self.M*self.task_in_progress_dep_x[train[0],train[1],train[2],order,minute],
+                            name=f"task_in_prog_for_3_{minute}_{train}_{order}"
+                        )
+                        # end_time-task <= M*y
+                        self.model.addConstr(
+                            end_time - minute <= self.M*self.task_in_progress_dep_y[train[0],train[1],train[2],order,minute],
+                            name=f"task_in_prog_for_4_{minute}_{train}_{order}"
+                        )
+                        # in_progress >= x+y-1
+                        self.model.addConstr(
+                            task_in_progress >= self.task_in_progress_dep_x[train[0],train[1],train[2],order,minute] + self.task_in_progress_dep_y[train[0],train[1],train[2],order,minute] - 1,
+                            name=f"task_in_prog_for_5_{minute}_{train}_{order}"
+                        )
+            print("23.2: Task in progress relation FOR constraint defined.")
+
+        def define_task_in_progress_dep_relation_constraint(self):
+            """22.3: DEP For every minute and task, set task_in_progress to 1 if task is in progress at that minute."""  
+            for minute in self.minute_slots:
+                for train in self.trains_dep:
+                    order = 4
+                    # Chantier DEP
+                    start_time = self.th_dep[train[0],train[1],train[2],order]
+                    end_time = self.th_dep[train[0],train[1],train[2],order] + self.dep_durees[order-1]
+                    task_in_progress = self.task_in_progress_dep[train[0],train[1],train[2],order,minute]
+                    # th*in_progress <= minute
+                    self.model.addConstr(
+                        start_time*task_in_progress <= minute,
+                        name=f"task_in_prog_dep_1_{minute}_{train}_{order}"
+                    )
+                    # minute <= th+duree*in_progress + M(1-in_progress)
+                    self.model.addConstr(
+                        minute <= (end_time)*task_in_progress + self.M*(1-task_in_progress),
+                        name=f"task_in_prog_dep_2_{minute}_{train}_{order}"
+                    )
+                    # minute-th <= M*x
+                    self.model.addConstr(
+                        (minute - end_time) <= self.M*self.task_in_progress_dep_x[train[0],train[1],train[2],order,minute],
+                        name=f"task_in_prog_dep_3_{minute}_{train}_{order}"
+                    )
+                    # end_time-task <= M*y
+                    self.model.addConstr(
+                        end_time - minute <= self.M*self.task_in_progress_dep_y[train[0],train[1],train[2],order,minute],
+                        name=f"task_in_prog_dep_4_{minute}_{train}_{order}"
+                    )
+                    # in_progress >= x+y-1
+                    self.model.addConstr(
+                        task_in_progress >= self.task_in_progress_dep_x[train[0],train[1],train[2],order,minute] + self.task_in_progress_dep_y[train[0],train[1],train[2],order,minute] - 1,
+                        name=f"task_in_prog_dep_5_{minute}_{train}_{order}"
+                    )
+            print("23.3: Task in progress relation DEP constraint defined.")
+
+
+        def define_max_agent_constraint(self):
+            """Constraint 24: Ensure that the maximum number of agents is not exceeded at any time."""
+            for minute in self.minute_slots:
+                self.model.addConstr(
+                    quicksum(self.task_in_progress_arr[train[0], train[1], train[2], order, minute] for train in self.trains_arr for order in self.arr_orders) <= self.max_agents['reception',minute],
+                    name=f"max_agents_constraint_rec_{minute}"
+                )
+                self.model.addConstr(
+                    quicksum(self.task_in_progress_dep[train[0], train[1], train[2], order, minute] for train in self.trains_dep for order in self.dep_orders[:-1]) <= self.max_agents['formation',minute],
+                    name=f"max_agents_constraint_for_{minute}"
+                )
+                self.model.addConstr(
+                    quicksum(self.task_in_progress_dep[train[0], train[1], train[2], 4, minute] for train in self.trains_dep) <= self.max_agents['depart',minute],
+                    name=f"max_agents_constraint_dep_{minute}"
+                )
+            print("24: Maximum agents constraint defined.")
+
+        def define_usage_relation_constraint(self):
+            """Constraint 25: Convert envelope_taches into envelope_used."""
+            M = 100
+            # REC
+            for i, (start_time,end_time) in enumerate(self.envelopes_agents['roulement_reception']):
+                self.model.addConstr(
+                    quicksum(self.envelope_taches_REC[i,train[0],train[1],train[2],order] for train in self.trains_arr for order in self.arr_orders) >= self.envelope_used_REC[i],
+                    name=f'envelope_used_rec_1_{i}'
+                )
+                self.model.addConstr(
+                    quicksum(self.envelope_taches_REC[i,train[0],train[1],train[2],order] for train in self.trains_arr for order in self.arr_orders) <= M*self.envelope_used_REC[i],
+                    name=f'envelope_used_rec_2_{i}'
+                )
+            # FOR
+            for i, (start_time,end_time) in enumerate(self.envelopes_agents['roulement_formation']):
+                self.model.addConstr(
+                    quicksum(self.envelope_taches_FOR[i,train[0],train[1],train[2],order] for train in self.trains_dep for order in self.dep_orders[:-1]) >= self.envelope_used_FOR[i],
+                    name=f'envelope_used_for_1_{i}'
+                )
+                self.model.addConstr(
+                    quicksum(self.envelope_taches_FOR[i,train[0],train[1],train[2],order] for train in self.trains_dep for order in self.dep_orders[:-1]) <= M*self.envelope_used_FOR[i],
+                    name=f'envelope_used_for_2_{i}'
+                )
+            # DEP
+            for i, (start_time,end_time) in enumerate(self.envelopes_agents['roulement_depart']):
+                self.model.addConstr(
+                    quicksum(self.envelope_taches_DEP[i,train[0],train[1],train[2],4] for train in self.trains_dep) >= self.envelope_used_DEP[i],
+                    name=f'envelope_used_dep_1_{i}'
+                )
+                self.model.addConstr(
+                    quicksum(self.envelope_taches_DEP[i,train[0],train[1],train[2],4] for train in self.trains_dep) <= M*self.envelope_used_DEP[i],
+                    name=f'envelope_used_dep_2_{i}'
+                )
+            # REC_DEP
+            for i, (start_time,end_time) in enumerate(self.envelopes_agents['roulement_reception_depart']):
+                self.model.addConstr(
+                    quicksum(
+                        self.envelope_taches_REC_DEP[i, train[0], train[1], train[2], order]
+                        for train in self.trains
+                        for order in self.dep_orders
+                        if not (train[0] == 'ARR' and order == 4) and not (train[0] == 'DEP' and (order == 1 or order == 2 or order == 3))
+                    ) >= self.envelope_used_REC_DEP[i],
+                    name=f'envelope_used_rec_dep_1_{i}'
+                )
+                self.model.addConstr(
+                    quicksum(self.envelope_taches_REC_DEP[i,train[0],train[1],train[2],order]
+                            for train in self.trains
+                            for order in self.dep_orders
+                            if not (train[0] == 'ARR' and order == 4) and not (train[0] == 'DEP' and (order == 1 or order == 2 or order == 3))) 
+                            <= M*self.envelope_used_REC_DEP[i],
+                    name=f'envelope_used_rec_dep_2_{i}'
+                )
+            # FOR_DEP
+            for i, (start_time,end_time) in enumerate(self.envelopes_agents['roulement_formation_depart']):
+                self.model.addConstr(
+                    quicksum(
+                        self.envelope_taches_FOR_DEP[i, train[0], train[1], train[2], order]
+                        for train in self.trains_dep
+                        for order in self.dep_orders
+                    ) >= self.envelope_used_FOR_DEP[i],
+                    name=f'envelope_used_for_dep_1_{i}'
+                )
+                self.model.addConstr(
+                    quicksum(self.envelope_taches_FOR_DEP[i,train[0],train[1],train[2],order]
+                            for train in self.trains_dep
+                            for order in self.dep_orders)
+                            <= M*self.envelope_used_FOR_DEP[i],
+                    name=f'envelope_used_for_dep_2_{i}'
+                )
+            print("25: Usage relation constraint defined.")
+        
+        def define_total_usage(self):
+            """Constraint 26: Calculate total usage of envelopes."""
+            self.model.addConstr(
+                quicksum(
+                    self.envelope_used_REC[i] for i in range(len(self.envelopes_agents['roulement_reception']))
+                )+
+                quicksum(
+                    self.envelope_used_FOR[i] for i in range(len(self.envelopes_agents['roulement_formation']))
+                )+
+                quicksum(
+                    self.envelope_used_DEP[i] for i in range(len(self.envelopes_agents['roulement_depart']))
+                )+
+                quicksum(
+                    self.envelope_used_REC_DEP[i] for i in range(len(self.envelopes_agents['roulement_reception_depart']))
+                )+
+                quicksum(
+                    self.envelope_used_FOR_DEP[i] for i in range(len(self.envelopes_agents['roulement_formation_depart']))
+                ) <= self.envelope_used_total,
+            )
+            print("26: Total usage constraint defined.")
+
+
         define_unavailability_machines_constraints()
+        define_usage_relation_constraint(self)
+        define_total_usage(self)
+        define_max_agent_constraint(self)
+        define_task_in_progress_rec_relation_constraint(self)
+        define_task_in_progress_for_relation_constraint(self)
+        define_task_in_progress_dep_relation_constraint(self)
+        define_envelope_taches_REC_relation_constraints(self)
+        define_envelope_taches_FOR_relation_constraints(self)
+        define_envelope_taches_DEP_relation_constraints(self)
+        define_envelope_taches_REC_DEP_relation_constraints(self)
+        define_envelope_taches_FOR_DEP_relation_constraints(self)
         define_unavailability_chantier_constraints()
         define_single_train_per_machine_constraints()
         # define_deb_usage_delay_constraint()
         # define_deg_time_limit_constraint()
-        define_for_after_deb_constraint()
         # define_for_before_deg_constraint()
+        define_for_after_deb_constraint()        
         define_task_time_slots_constraint()
         define_arr_tri_constraint()
         define_tri_deb_constraint()
@@ -535,7 +985,7 @@ class ModelJalon3:
         print('Constraints defined')
     
     def _define_objective_function(self):
-        self.model.setObjective(self.for_max, GRB.MINIMIZE)  # Minimise taux d'occupation des voies de chantier FOR
+        self.model.setObjective(self.envelope_used_total, GRB.MINIMIZE)  # Minimise total envelope usage
         print('Objective function defined')
 
     def optimize(self):
@@ -624,6 +1074,24 @@ class ModelJalon3:
                             'Sillon': train[1]
                         })
 
+            results_roulements = []
+            for train in self.trains:
+                if train[0] == 'ARR':
+                    for order in self.arr_orders:
+                        nb_roulement = self.
+                        jour, horaire = minute_to_date2(self.model.getVarByName(f'th_arr[{train[0]},{train[1]},{train[2]},{order}]').X, self.j1)
+                        results_roulements.append({
+                            'Id tâche': f'{self.machines[0]}_{train[1]}_{jour}',
+                            'Type de tâche': self.machines[0],
+                            'Jour': jour,
+                            'Heure début': horaire,
+                            'Durée': self.arr_durees[order-1],
+                            'Sillon': train[1]
+                        })
+            
+                elif train[0] == 'DEP':
+
+
 
             # Create a DataFrame from the results
             df_results = pd.DataFrame(results)
@@ -631,11 +1099,6 @@ class ModelJalon3:
             df_results_th = pd.DataFrame(results_taches_humaines)
             sheet_names = ["Taches machine","Voies utilisation","Taches humaines"]
             file_name = Path(self.fichier).stem
-            # #writer = pd.ExcelWriter(f'{self.results_folder_save_path}/results_{file_name}.xlsx')
-            # df_results.to_excel(f'{self.results_folder_save_path}/results_{file_name}.xlsx',sheet_name=sheet_names[0], index=False)
-            # df_voies.to_excel(f'{self.results_folder_save_path}/results_{file_name}_voies.xlsx',sheet_name=sheet_names[1], index=True)
-            # df_results_th.to_excel(f'{self.results_folder_save_path}/results_{file_name}.xlsx',sheet_name=sheet_names[2], index=False)
-            # #df_voies.to_excel(writer, sheet_name=sheet_names[1], index=False)
 
             # Save DataFrames to different sheets in the same Excel file
             with pd.ExcelWriter(f'{self.results_folder_save_path}/results_{file_name}.xlsx') as writer:
@@ -643,6 +1106,7 @@ class ModelJalon3:
                 df_voies.to_excel(writer, sheet_name=sheet_names[1], index=True)
                 df_results_th.to_excel(writer, sheet_name=sheet_names[2], index=False)
             print(f'Results saved to {self.results_folder_save_path}/results_{file_name}.xlsx')
+            print(f'Optimal solution found with objective value: {self.model.objVal}, total no of envelopes: {len(self.envelopes_agents["roulement_reception"])+len(self.envelopes_agents["roulement_formation"])+len(self.envelopes_agents["roulement_depart"])+len(self.envelopes_agents["roulement_reception_depart"])+len(self.envelopes_agents["roulement_formation_depart"])}')
 
             return df_results
         else:
