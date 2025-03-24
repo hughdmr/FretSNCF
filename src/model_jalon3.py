@@ -48,7 +48,8 @@ class ModelJalon3:
         self.unavailable_periods_chantiers, self.start_times_chantiers = unavailable_chantiers(self.chantiers_df, self.jours, self.first_day)
         self.trains_requis_dict = correspondance_for_depart(self.trains_dep, self.trains_arr, self.correspondances_df, self.j1)
         self.max_voies = find_max_voies(self.chantiers_df)
-        self.arr_taches, self.dep_taches, self.envelopes_agents, self.nombre_agents, self.max_agents = format_taches_humaines(self.taches_humaines_df, self.roulements_agents_df, self.jours, self.first_day, self.minute_slots)
+        (self.arr_taches, self.dep_taches, self.envelopes_agents, self.nombre_agents, self.max_agents, self.arr_taches_dict,self.dep_taches_dict
+        ) = format_taches_humaines(self.taches_humaines_df, self.roulements_agents_df, self.jours, self.first_day, self.minute_slots)
         self.arr_orders = np.array(self.arr_taches[:,0]).astype(int)
         self.dep_orders = np.array(self.dep_taches[:,0]).astype(int)
         self.arr_durees = np.array(self.arr_taches[:,1]).astype(int)
@@ -363,9 +364,9 @@ class ModelJalon3:
             for minute in self.minute_slots:
                 for train in self.trains_arr:
                     # Chantier FOR
-                    # tarr*occup <= t
+                    # a*occup <= t
                     self.model.addConstr(
-                        train[2]/15*self.for_occup[train[0],train[1],train[2], minute] <= minute,
+                        self.a[train[0],train[1],train[2]]/15*self.for_occup[train[0],train[1],train[2], minute] <= minute,
                         name=f"for_occup_before_{train}_{minute}"
                     )
                     # t <= (a+15)*occup + M(1-occup)
@@ -373,9 +374,9 @@ class ModelJalon3:
                         minute <= (self.a[train[0],train[1],train[2]]+15)/15*self.for_occup[train[0],train[1],train[2], minute] + self.M*(1-self.for_occup[train[0],train[1],train[2], minute]),
                         name=f"for_occup_after_{train}_{minute}"
                     )
-                    # t-tarr <= M*x
+                    # t-a <= M*x
                     self.model.addConstr(
-                        (minute - train[2]/15) <= self.M*self.for_x[train[0],train[1],train[2], minute],
+                        (minute - self.a[train[0],train[1],train[2]]/15) <= self.M*self.for_x[train[0],train[1],train[2], minute],
                         name=f"for_occup_after_harr_{train}_{minute}"
                     )
                     # (a+15)-t <= M*y
@@ -990,6 +991,7 @@ class ModelJalon3:
 
     def optimize(self):
         """Optimize the model."""
+        self.model.setParam('TimeLimit', 400)
         self.model.optimize()
         print('Optimization complete')
 
@@ -997,6 +999,47 @@ class ModelJalon3:
         """Save the model to a file."""
         self.model.write(self.model_save_path)
         print(f'Model saved to {self.model_save_path}')
+
+    def process_envelope_tasks(self,envelope_type, trains, orders, envelope_taches, th_var, taches_dict, results_roulements):
+        for i, (start_time, end_time) in enumerate(self.envelopes_agents[envelope_type]):
+            for train in trains:
+                for order in orders:
+                    if envelope_type == 'roulement_reception_depart' and (train[0] == 'ARR' and order == 4 or train[0] == 'DEP' and (order == 1 or order == 2 or order == 3)):
+                        continue
+                    if envelope_type == 'roulement_reception_depart' and train[0] == 'ARR':
+                        taches_dict = self.arr_taches_dict
+                        th_var = 'th_arr'
+                    elif envelope_type == 'roulement_reception_depart' and train[0] == 'DEP':
+                        taches_dict = self.dep_taches_dict
+                        th_var = 'th_dep'
+                    nb_roulement = envelope_taches[i, train[0], train[1], train[2], order]
+                    if nb_roulement.X == 0:
+                        continue
+                    elif nb_roulement.X == 1:
+                        jour_start, horaire_start = minute_to_date2(start_time, self.j1)
+                        jour_end, horaire_end = minute_to_date2(end_time, self.j1)
+                        jour_tache, horaire_tache = minute_to_date2(self.model.getVarByName(f'{th_var}[{train[0]},{train[1]},{train[2]},{order}]').X, self.j1)
+                        jour_tache_fin, horaire_tache_fin = minute_to_date2(self.model.getVarByName(f'{th_var}[{train[0]},{train[1]},{train[2]},{order}]').X + taches_dict[order][0][0], self.j1)
+                        results_roulements.append({
+                            'Id JS': f'{envelope_type}_{horaire_start}-{horaire_end}_{jour_start}',
+                            #'Ordre T': order,
+                            'Type T': taches_dict[order][0][2],
+                            'Sillon': train,
+                            'Début T': f'{jour_tache} {horaire_tache}',
+                            'Fin T': f'{jour_tache_fin} {horaire_tache_fin}',
+                            'Durée T': taches_dict[order][0][0],
+                            'Lieu T': taches_dict[order][0][1],
+                            'Roulement': envelope_type
+                        })
+
+    def process_roulement(self, roulement_type, envelope_used, results_journees,roulement_nb):
+        for i, (start_time, end_time) in enumerate(self.envelopes_agents[roulement_type]):
+            if envelope_used[i].X == 0:
+                continue
+            date, time = minute_to_date2(start_time, self.j1)
+            if date not in results_journees:
+                results_journees[date] = np.zeros(5)
+            results_journees[date][roulement_nb] += envelope_used[i].X
 
     def get_results(self):
         """Extract and return results after optimization."""
@@ -1075,29 +1118,49 @@ class ModelJalon3:
                         })
 
             results_roulements = []
-            for train in self.trains:
-                if train[0] == 'ARR':
-                    for order in self.arr_orders:
-                        nb_roulement = self.
-                        jour, horaire = minute_to_date2(self.model.getVarByName(f'th_arr[{train[0]},{train[1]},{train[2]},{order}]').X, self.j1)
-                        results_roulements.append({
-                            'Id tâche': f'{self.machines[0]}_{train[1]}_{jour}',
-                            'Type de tâche': self.machines[0],
-                            'Jour': jour,
-                            'Heure début': horaire,
-                            'Durée': self.arr_durees[order-1],
-                            'Sillon': train[1]
-                        })
+
+            results_journees = {}
+        
+
+            # Process each roulement type
+            self.process_roulement('roulement_reception', self.envelope_used_REC, results_journees, 0)
+            self.process_roulement('roulement_formation', self.envelope_used_FOR, results_journees, 1)
+            self.process_roulement('roulement_depart', self.envelope_used_DEP, results_journees, 2)
+            self.process_roulement('roulement_reception_depart', self.envelope_used_REC_DEP, results_journees, 3)
+            self.process_roulement('roulement_formation_depart', self.envelope_used_FOR_DEP, results_journees, 4)
             
-                elif train[0] == 'DEP':
+
+            # Process each envelope type
+            self.process_envelope_tasks('roulement_reception', self.trains_arr, self.arr_orders, self.envelope_taches_REC, 'th_arr', self.arr_taches_dict, results_roulements)
+            self.process_envelope_tasks('roulement_formation', self.trains_dep, self.dep_orders[:-1], self.envelope_taches_FOR, 'th_dep', self.dep_taches_dict, results_roulements)
+            self.process_envelope_tasks('roulement_depart', self.trains_dep, [4], self.envelope_taches_DEP, 'th_dep', self.dep_taches_dict, results_roulements)
+            self.process_envelope_tasks('roulement_reception_depart', self.trains, self.dep_orders, self.envelope_taches_REC_DEP, 'th_dep', self.dep_taches_dict, results_roulements)
+            self.process_envelope_tasks('roulement_formation_depart', self.trains_dep, self.dep_orders, self.envelope_taches_FOR_DEP, 'th_dep', self.dep_taches_dict, results_roulements)
 
 
 
-            # Create a DataFrame from the results
+            # Create DataFrames from the results
             df_results = pd.DataFrame(results)
-            df_voies = pd.DataFrame(voies,index =self.chantiers)
+            df_voies = pd.DataFrame(voies, index=self.chantiers)
             df_results_th = pd.DataFrame(results_taches_humaines)
-            sheet_names = ["Taches machine","Voies utilisation","Taches humaines"]
+            df_results_roulements = pd.DataFrame(results_roulements)
+
+            
+            # Sort df_results_roulements by 'Début T'
+            df_results_roulements.sort_values(by=['Début T'], inplace=True)
+
+            # Add a sequential number depending on the order if they have the same 'Id JS'
+            df_results_roulements.insert(1,'Order',df_results_roulements.groupby('Id JS').cumcount() + 1)
+
+            # Convert results_journees to DataFrame
+            df_results_journees = pd.DataFrame.from_dict(results_journees)
+            df_results_journees.set_index(self.roulements_agents_df['Roulement'], inplace=True)
+
+            # Add totals
+            df_results_journees['Total'] = df_results_journees.sum(axis=1)
+            df_results_journees.loc['Total'] = df_results_journees.sum(axis=0)
+
+            sheet_names = ["Taches machine", "Voies utilisation", "Taches humaines", "Roulements", "Nb Journees activees"]
             file_name = Path(self.fichier).stem
 
             # Save DataFrames to different sheets in the same Excel file
@@ -1105,8 +1168,10 @@ class ModelJalon3:
                 df_results.to_excel(writer, sheet_name=sheet_names[0], index=False)
                 df_voies.to_excel(writer, sheet_name=sheet_names[1], index=True)
                 df_results_th.to_excel(writer, sheet_name=sheet_names[2], index=False)
+                df_results_roulements.to_excel(writer, sheet_name=sheet_names[3], index=False)
+                df_results_journees.to_excel(writer, sheet_name=sheet_names[4], index=True)
+
             print(f'Results saved to {self.results_folder_save_path}/results_{file_name}.xlsx')
-            print(f'Optimal solution found with objective value: {self.model.objVal}, total no of envelopes: {len(self.envelopes_agents["roulement_reception"])+len(self.envelopes_agents["roulement_formation"])+len(self.envelopes_agents["roulement_depart"])+len(self.envelopes_agents["roulement_reception_depart"])+len(self.envelopes_agents["roulement_formation_depart"])}')
 
             return df_results
         else:
