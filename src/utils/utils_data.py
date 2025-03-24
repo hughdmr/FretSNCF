@@ -126,8 +126,21 @@ def format_taches_humaines(taches_humaines_df, roulements_agents_df, jours,day_1
         for (start3, end3) in envelopes_agents['roulement_formation_depart']:
             if start3 <= minute < end3:
                 max_agents['depart', minute] += nombre_agents[4]
+        
+    arr_taches_dict = {}
+    dep_taches_dict = {}
+    for x, tache in taches_humaines_df.iterrows():
+        if tache['Type de train'] == 'ARR':
+            if tache['Ordre'] not in arr_taches_dict:
+                arr_taches_dict[tache['Ordre']] = []
+            arr_taches_dict[tache['Ordre']].append([tache['Durée'], tache['Chantier'], tache['Type de tache humaine']])
+        elif tache['Type de train'] == 'DEP':
+            if tache['Ordre'] not in dep_taches_dict:
+                dep_taches_dict[tache['Ordre']] = []
+            dep_taches_dict[tache['Ordre']].append([tache['Durée'], tache['Chantier'], tache['Type de tache humaine']])
 
-    return arr_taches, dep_taches, envelopes_agents, nombre_agents, max_agents
+
+    return arr_taches, dep_taches, envelopes_agents, nombre_agents, max_agents, arr_taches_dict, dep_taches_dict
 
 def unavailable_machines(machines_df, jours,day_1):
     """Process the unavailable periods for each machine"""

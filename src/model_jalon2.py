@@ -523,6 +523,8 @@ class ModelJalon2:
 
 from gurobipy import Model, GRB, quicksum
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
 from utils.utils_data import (
     format_trains, add_time_reference, unavailable_machines, correspondance_for_depart, unavailable_chantiers, find_max_voies
 )
@@ -805,9 +807,9 @@ class ModelJalon2:
             for minute in self.minute_slots:
                 for train in self.trains_arr:
                     # Chantier FOR
-                    # tarr*occup <= t
+                    # a*occup <= t
                     self.model.addConstr(
-                        train[2]/15*self.for_occup[train[0],train[1],train[2], minute] <= minute,
+                        self.a[train[0],train[1],train[2]]/15*self.for_occup[train[0],train[1],train[2], minute] <= minute,
                         name=f"for_occup_before_{train}_{minute}"
                     )
                     # t <= (a+15)*occup + M(1-occup)
@@ -815,9 +817,9 @@ class ModelJalon2:
                         minute <= (self.a[train[0],train[1],train[2]]+15)/15*self.for_occup[train[0],train[1],train[2], minute] + self.M*(1-self.for_occup[train[0],train[1],train[2], minute]),
                         name=f"for_occup_after_{train}_{minute}"
                     )
-                    # t-tarr <= M*x
+                    # t-a <= M*x
                     self.model.addConstr(
-                        (minute - train[2]/15) <= self.M*self.for_x[train[0],train[1],train[2], minute],
+                        (minute - self.a[train[0],train[1],train[2]]/15) <= self.M*self.for_x[train[0],train[1],train[2], minute],
                         name=f"for_occup_after_harr_{train}_{minute}"
                     )
                     # (a+15)-t <= M*y
@@ -948,6 +950,7 @@ class ModelJalon2:
 
     def optimize(self):
         """Optimize the model."""
+        self.model.setParam('TimeLimit', 400)
         self.model.optimize()
         print('Optimization complete')
 
@@ -958,7 +961,7 @@ class ModelJalon2:
 
     def get_results(self):
         """Extract and return results after optimization."""
-        if self.model.status == GRB.OPTIMAL:
+        if self.model.status == GRB.OPTIMAL or self.model.status == GRB.TIME_LIMIT:
             results = []
             for train in self.trains:
                 if train[0] == 'ARR':
@@ -1006,6 +1009,21 @@ class ModelJalon2:
                 'Nombre total voies dispo': self.max_voies[2],  
             }
             ]
+
+            # Voie utilisage par minute
+            rec_usage = np.zeros(len(self.minute_slots))
+            for_usage = np.zeros(len(self.minute_slots))
+            dep_usage = np.zeros(len(self.minute_slots))
+            for i,minute in enumerate(self.minute_slots):
+                rec_usage[i] = sum(self.rec_occup[train[0], train[1], train[2], minute].X for train in self.trains_arr)
+                for_usage[i] = sum(self.for_occup[train[0], train[1], train[2], minute].X for train in self.trains)
+                dep_usage[i] = sum(self.for_occup[train[0], train[1], train[2], minute].X for train in self.trains_dep)
+                
+            plt.plot(self.minute_slots, rec_usage, label='REC')
+            plt.plot(self.minute_slots, for_usage, label='FOR')
+            plt.plot(self.minute_slots, dep_usage, label='DEP')
+            plt.legend()
+            plt.show()
 
 
             # Create a DataFrame from the results
