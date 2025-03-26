@@ -363,36 +363,38 @@ class ModelJalon3:
             """Constraint 8.2: Relate binary variables for occupation to the start time of each machine"""
             for minute in self.minute_slots:
                 for train in self.trains_arr:
-                    # Chantier FOR
-                    # a*occup <= t
-                    self.model.addConstr(
-                        self.a[train[0],train[1],train[2]]/15*self.for_occup[train[0],train[1],train[2], minute] <= minute,
-                        name=f"for_occup_before_{train}_{minute}"
-                    )
-                    # t <= (a+15)*occup + M(1-occup)
-                    self.model.addConstr(
-                        minute <= (self.a[train[0],train[1],train[2]]+15)/15*self.for_occup[train[0],train[1],train[2], minute] + self.M*(1-self.for_occup[train[0],train[1],train[2], minute]),
-                        name=f"for_occup_after_{train}_{minute}"
-                    )
-                    # t-a <= M*x
-                    self.model.addConstr(
-                        (minute - self.a[train[0],train[1],train[2]]/15) <= self.M*self.for_x[train[0],train[1],train[2], minute],
-                        name=f"for_occup_after_harr_{train}_{minute}"
-                    )
-                    # (a+15)-t <= M*y
-                    self.model.addConstr(
-                        (self.a[train[0],train[1],train[2]]+15)/15 - minute <= self.M*self.for_y[train[0],train[1],train[2], minute],
-                        name=f"for_occup_before_harr_{train}_{minute}"
-                    )
-                    # occup >= x+y-1
-                    self.model.addConstr(
-                        self.for_occup[train[0],train[1],train[2], minute] >= self.for_x[train[0],train[1],train[2], minute] + self.for_y[train[0],train[1],train[2], minute] - 1,
-                    )
+                    train_dep = next((k for k, v in self.trains_requis_dict.items() if train in v), None)
+                    if train_dep is not None:
+                        # Chantier FOR
+                        # a*occup <= t
+                        self.model.addConstr(
+                            self.a[train[0],train[1],train[2]]/15*self.for_occup[train[0],train[1],train[2], minute] <= minute,
+                            name=f"for_occup_before_{train}_{minute}"
+                        )
+                        # t <= b*occup + M(1-occup)
+                        self.model.addConstr(
+                            minute <= (self.b[train_dep[0],train_dep[1],train_dep[2]])/15*self.for_occup[train[0],train[1],train[2], minute] + self.M*(1-self.for_occup[train[0],train[1],train[2], minute]),
+                            name=f"for_occup_after_{train}_{minute}"
+                        )
+                        # t-a <= M*x
+                        self.model.addConstr(
+                            (minute - self.a[train[0],train[1],train[2]]/15) <= self.M*self.for_x[train[0],train[1],train[2], minute],
+                            name=f"for_occup_after_harr_{train}_{minute}"
+                        )
+                        # b-t <= M*y
+                        self.model.addConstr(
+                            (self.b[train_dep[0],train_dep[1],train_dep[2]])/15 - minute <= self.M*self.for_y[train[0],train[1],train[2], minute],
+                            name=f"for_occup_before_harr_{train}_{minute}"
+                        )
+                        # occup >= x+y-1
+                        self.model.addConstr(
+                            self.for_occup[train[0],train[1],train[2], minute] >= self.for_x[train[0],train[1],train[2], minute] + self.for_y[train[0],train[1],train[2], minute] - 1,
+                        )
                 for train in self.trains_dep:
                     # Chantier FOR
                     # b*occup <= t
                     self.model.addConstr(
-                        self.b[train[0],train[1],train[2]]/15*self.for_occup[train[0],train[1],train[2], minute] <= minute,
+                        (self.b[train[0],train[1],train[2]])/15*self.for_occup[train[0],train[1],train[2], minute] <= minute,
                         name=f"for_occup_before_{train}_{minute}"
                     )
                     # t <= (c+15)*occup + M(1-occup)
