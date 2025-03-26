@@ -22,6 +22,7 @@ class ModelJalon2:
         self.model_save_path = os.getenv('MODEL_SAVE_PATH')
         self.results_folder_save_path = os.getenv('RESULTS_FOLDER_SAVE_PATH')
         self.fichier = os.getenv('FILE_INSTANCE')
+        print(f'using{self.fichier}')
 
         self.model = Model(self.model_name)
         self._load_data()
@@ -285,36 +286,38 @@ class ModelJalon2:
             """Constraint 8.2: Relate binary variables for occupation to the start time of each machine"""
             for minute in self.minute_slots:
                 for train in self.trains_arr:
-                    # Chantier FOR
-                    # a*occup <= t
-                    self.model.addConstr(
-                        self.a[train[0],train[1],train[2]]/15*self.for_occup[train[0],train[1],train[2], minute] <= minute,
-                        name=f"for_occup_before_{train}_{minute}"
-                    )
-                    # t <= (a+15)*occup + M(1-occup)
-                    self.model.addConstr(
-                        minute <= (self.a[train[0],train[1],train[2]]+15)/15*self.for_occup[train[0],train[1],train[2], minute] + self.M*(1-self.for_occup[train[0],train[1],train[2], minute]),
-                        name=f"for_occup_after_{train}_{minute}"
-                    )
-                    # t-a <= M*x
-                    self.model.addConstr(
-                        (minute - self.a[train[0],train[1],train[2]]/15) <= self.M*self.for_x[train[0],train[1],train[2], minute],
-                        name=f"for_occup_after_harr_{train}_{minute}"
-                    )
-                    # (a+15)-t <= M*y
-                    self.model.addConstr(
-                        (self.a[train[0],train[1],train[2]]+15)/15 - minute <= self.M*self.for_y[train[0],train[1],train[2], minute],
-                        name=f"for_occup_before_harr_{train}_{minute}"
-                    )
-                    # occup >= x+y-1
-                    self.model.addConstr(
-                        self.for_occup[train[0],train[1],train[2], minute] >= self.for_x[train[0],train[1],train[2], minute] + self.for_y[train[0],train[1],train[2], minute] - 1,
-                    )
+                    train_dep = next((k for k, v in self.trains_requis_dict.items() if train in v), None)
+                    if train_dep is not None:
+                        # Chantier FOR
+                        # a*occup <= t
+                        self.model.addConstr(
+                            self.a[train[0],train[1],train[2]]/15*self.for_occup[train[0],train[1],train[2], minute] <= minute,
+                            name=f"for_occup_before_{train}_{minute}"
+                        )
+                        # t <= b*occup + M(1-occup)
+                        self.model.addConstr(
+                            minute <= (self.b[train_dep[0],train_dep[1],train_dep[2]])/15*self.for_occup[train[0],train[1],train[2], minute] + self.M*(1-self.for_occup[train[0],train[1],train[2], minute]),
+                            name=f"for_occup_after_{train}_{minute}"
+                        )
+                        # t-a <= M*x
+                        self.model.addConstr(
+                            (minute - self.a[train[0],train[1],train[2]]/15) <= self.M*self.for_x[train[0],train[1],train[2], minute],
+                            name=f"for_occup_after_harr_{train}_{minute}"
+                        )
+                        # b-t <= M*y
+                        self.model.addConstr(
+                            (self.b[train_dep[0],train_dep[1],train_dep[2]])/15 - minute <= self.M*self.for_y[train[0],train[1],train[2], minute],
+                            name=f"for_occup_before_harr_{train}_{minute}"
+                        )
+                        # occup >= x+y-1
+                        self.model.addConstr(
+                            self.for_occup[train[0],train[1],train[2], minute] >= self.for_x[train[0],train[1],train[2], minute] + self.for_y[train[0],train[1],train[2], minute] - 1,
+                        )
                 for train in self.trains_dep:
                     # Chantier FOR
                     # b*occup <= t
                     self.model.addConstr(
-                        self.b[train[0],train[1],train[2]]/15*self.for_occup[train[0],train[1],train[2], minute] <= minute,
+                        (self.b[train[0],train[1],train[2]])/15*self.for_occup[train[0],train[1],train[2], minute] <= minute,
                         name=f"for_occup_before_{train}_{minute}"
                     )
                     # t <= (c+15)*occup + M(1-occup)
@@ -377,7 +380,7 @@ class ModelJalon2:
                     name=f"max_voies_constraint_{minute}"
                 )
                 self.model.addConstr(
-                    quicksum(self.for_occup[train[0], train[1], train[2], minute] for train in self.trains_dep) <= self.max_voies[1],
+                    quicksum(self.for_occup[train[0], train[1], train[2], minute] for train in self.trains) <= self.max_voies[1],
                     name=f"max_voies_constraint_{minute}"
                 )
                 self.model.addConstr(
@@ -429,7 +432,7 @@ class ModelJalon2:
 
     def optimize(self):
         """Optimize the model."""
-        self.model.setParam('TimeLimit', 400)
+        self.model.setParam('TimeLimit', 100)
         self.model.optimize()
         print('Optimization complete')
 
@@ -440,7 +443,7 @@ class ModelJalon2:
 
     def get_results(self):
         """Extract and return results after optimization."""
-        if self.model.status == GRB.OPTIMAL or self.model.status == GRB.TIME_LIMIT:
+        if self.model.status == GRB.OPTIMAL or self.model.status == GRB.TIME_LIMIT or self.model.status == GRB.INTERRUPTED:
             results = []
             for train in self.trains:
                 if train[0] == 'ARR':
@@ -496,7 +499,7 @@ class ModelJalon2:
             for i,minute in enumerate(self.minute_slots):
                 rec_usage[i] = sum(self.rec_occup[train[0], train[1], train[2], minute].X for train in self.trains_arr)
                 for_usage[i] = sum(self.for_occup[train[0], train[1], train[2], minute].X for train in self.trains)
-                dep_usage[i] = sum(self.for_occup[train[0], train[1], train[2], minute].X for train in self.trains_dep)
+                dep_usage[i] = sum(self.dep_occup[train[0], train[1], train[2], minute].X for train in self.trains_dep)
                 
             plt.plot(self.minute_slots, rec_usage, label='REC')
             plt.plot(self.minute_slots, for_usage, label='FOR')

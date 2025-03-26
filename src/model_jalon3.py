@@ -678,7 +678,7 @@ class ModelJalon3:
                         )
                         # end_time-task <= M*y
                         self.model.addConstr(
-                            end_time - task <= self.M*self.envelope_taches_REC_DEP_y[i,train[0],train[1],train[2],order],
+                            end_time - (task) <= self.M*self.envelope_taches_REC_DEP_y[i,train[0],train[1],train[2],order],
                             name=f"roul_rec_dep_y_{train}_{order}"
                         )
                         # envelope_tache >= x+y-1
@@ -704,7 +704,7 @@ class ModelJalon3:
                         )
                         # task <= end_time*envelope_tache + M(1-envelope_tache)
                         self.model.addConstr(
-                            task <= (end_time)*envelope_tache + self.M*(1-envelope_tache),
+                            (task) <= (end_time)*envelope_tache + self.M*(1-envelope_tache),
                             name=f"roul_for_dep_task_before_{end_time}_{train}_{order}"
                         )
                         # task-start_time <= M*x
@@ -714,7 +714,7 @@ class ModelJalon3:
                         )
                         # end_time-task <= M*y
                         self.model.addConstr(
-                            end_time - task <= self.M*self.envelope_taches_FOR_DEP_y[i,train[0],train[1],train[2],order],
+                            end_time - (task) <= self.M*self.envelope_taches_FOR_DEP_y[i,train[0],train[1],train[2],order],
                             name=f"roul_for_dep_y_{train}_{order}"
                         )
                         # envelope_tache >= x+y-1
