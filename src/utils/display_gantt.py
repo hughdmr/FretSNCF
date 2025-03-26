@@ -3,6 +3,7 @@ import itertools
 
 import plotly.express as px
 import pandas as pd
+from display_track import displays_track_occupation
 
 class ResultColumnNames:
     TASK_ID = "Id tâche"
@@ -60,4 +61,4 @@ def display_gantt(results_file_path, gantt_image_save_path, save_image=True):
     fig.show()
     
 if __name__ == '__main__':
-    display_gantt("results.xlsx", "gantt.png", False)
+    display_gantt("outputs/results/results_instance_WPY_realiste_jalon2_jalon2.xlsx", "gantt.png", False)
