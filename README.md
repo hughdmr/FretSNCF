@@ -18,10 +18,15 @@ In this project, we aim to model the management of a freight classification yard
 
 - The folder `data/`contains the instances (already uploaded in the folder)
 - The folder `outputs/`contains some of the outputs of the python scripts (models and tables)
-  - `resultats_instance_WPY_realiste_jalon1.xlsx`is the excel with the results of the first jalon, you can use it to display graph with grantt and sankey.
+  - `results_instanceNAME_jalonN.xlsx`are the excel with the results of an instance M and jalon N, you can use it to display graph with gantt and sankey.
+  - `gantt_instanceNAME_jalonN.png`are the gantt graph (same for sankey).
 - The folder `src/`contains the code with:
-  - `notebooks/`: some notebooks for test
+  - `deprecated_versions/`: some old versions of models and notebooks for test
   - `utils/`: utils functions used in the creation of the models and displaying of the results.
+    - `display_gantt.py`: displaying function for gantt graph
+    - `display_sankey.py`: displaying function for sankey graph
+    - `display_track_occupation.py`: displaying function for track occupation using `display_colors.py`
+    - `verify_train.py`: streamlit interface to check times when machines are used for a departure train.
   - `model.py`: old version for creation of model
   - `model_jalonN.py`: model for the Nth jalon.
   - `main.py`: choose you model and run it.
