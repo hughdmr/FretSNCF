@@ -34,7 +34,7 @@ def calculate_delta_days(sillons_depart_df,sillons_arrivee_df):
         j1 = min_jour
 
     diff = jfin - j1
-    jours = diff.days
+    jours = diff.days+1
     first_day = j1.weekday()
     return j1, jours, first_day
 
@@ -100,32 +100,32 @@ def format_taches_humaines(taches_humaines_df, roulements_agents_df, jours,day_1
 
     nombre_agents = np.array(nombre_agents)
 
-    max_agents = {}
-    for minute in minute_slots:
-        max_agents['reception', minute] = 0
+    max_agents = {
+        'reception': [0] * len(minute_slots),
+        'reception_depart': [0] * len(minute_slots),
+        'formation': [0] * len(minute_slots),
+        'formation_depart': [0] * len(minute_slots),
+        'depart': [0] * len(minute_slots)
+    }
+
+    for i, minute in enumerate(minute_slots):
+        minute = minute*15
         for (start, end) in envelopes_agents['roulement_reception']:
             if start <= minute < end:
-                max_agents['reception', minute] += nombre_agents[0]
-        for (start2, end2) in envelopes_agents['roulement_reception_depart']:
-            if start2 <= minute < end2:
-                max_agents['reception', minute] += nombre_agents[3]
-        max_agents['formation', minute] = 0
+                max_agents['reception'][i] += nombre_agents[0]
         for (start, end) in envelopes_agents['roulement_formation']:
             if start <= minute < end:
-                max_agents['formation', minute] += nombre_agents[1]
-        for (start2, end2) in envelopes_agents['roulement_formation_depart']:
-            if start2 <= minute < end2:
-                max_agents['formation', minute] += nombre_agents[4]
-        max_agents['depart', minute] = 0
+                max_agents['formation'][i] += nombre_agents[1]
         for (start, end) in envelopes_agents['roulement_depart']:
             if start <= minute < end:
-                max_agents['depart', minute] += nombre_agents[2]
-        for (start2, end2) in envelopes_agents['roulement_reception_depart']:
-            if start2 <= minute < end2:
-                max_agents['depart', minute] += nombre_agents[3]
+                max_agents['depart'][i] += nombre_agents[2]
+        for (start, end) in envelopes_agents['roulement_reception_depart']:
+            if start <= minute < end:
+                max_agents['depart'][i] += nombre_agents[3]
         for (start3, end3) in envelopes_agents['roulement_formation_depart']:
-            if start3 <= minute < end3:
-                max_agents['depart', minute] += nombre_agents[4]
+            if start <= minute < end:
+                max_agents['depart'][i] += nombre_agents[4]
+
         
     arr_taches_dict = {}
     dep_taches_dict = {}
