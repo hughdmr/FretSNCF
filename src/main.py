@@ -4,7 +4,7 @@ from model_jalon3 import ModelJalon3
 
 if __name__ == '__main__':
     try:
-        ModelJalon2().run_optimization() # Choose the model you want to run
+        ModelJalon3().run_optimization() # Choose the model you want to run
         print(f"Model created successfully for instance.")
     except Exception as e:
         print(f"An error occurred while creating the model: {e}")
