@@ -1,5 +1,6 @@
 from gurobipy import Model, GRB, quicksum
 import pandas as pd
+import numpy as np
 from utils.utils_data import (
     format_trains, add_time_reference, unavailable_machines, correspondance_for_depart, unavailable_chantiers, find_max_voies, format_taches_humaines
 )
@@ -48,10 +49,13 @@ class ModelJalon3:
         self.trains_requis_dict = correspondance_for_depart(self.trains_dep, self.trains_arr, self.correspondances_df, self.j1)
         self.max_voies = find_max_voies(self.chantiers_df)
         self.arr_taches, self.dep_taches, self.envelopes_agents = format_taches_humaines(self.taches_humaines_df, self.roulements_agents_df, self.jours, self.first_day)
+        self.arr_orders = np.array(self.arr_taches[:,0]).astype(int)
+        self.dep_orders = np.array(self.dep_taches[:,0]).astype(int)
+        self.arr_durees = np.array(self.arr_taches[:,1]).astype(int)
+        self.dep_durees = np.array(self.dep_taches[:,1]).astype(int)
         print('Data loaded')
-        print(self.arr_taches)
-        print(self.dep_taches)
-        print(self.envelopes_agents)
+        print(self.arr_orders)
+        print(self.trains_arr)
 
     def _define_variables(self):
         """Define model variables."""
@@ -62,14 +66,14 @@ class ModelJalon3:
             self.b = self.model.addVars(self.trains_dep, lb=0, ub=max(self.minutes), vtype=GRB.INTEGER, name="b")
             self.c = self.model.addVars(self.trains_dep, lb=0, ub=max(self.minutes), vtype=GRB.INTEGER, name="c")
 
-            self.th_arr = self.model.addVars(self.trains_arr, self.arr_taches[:,0], vtype=GRB.INTEGER, name="th_arr")
-            self.th_dep = self.model.addVars(self.trains_dep, self.dep_taches[:,0], vtype=GRB.INTEGER, name="th_dep")
+            self.th_arr = self.model.addVars(self.trains_arr, self.arr_orders, lb=0, ub=max(self.minutes), vtype=GRB.INTEGER, name="th_arr")
+            self.th_dep = self.model.addVars(self.trains_dep, self.dep_orders, lb=0, ub=max(self.minutes), vtype=GRB.INTEGER, name="th_dep")
         
         def define_auxiliary_variables(self):
-            """Define auxiliary variables for the optimization model. To ensure that a,b,c are all 15 minutes."""
-            self.aint = self.model.addVars(self.trains_arr, vtype=GRB.INTEGER, name="aint")
-            self.bint = self.model.addVars(self.trains_dep, vtype=GRB.INTEGER, name="bint")
-            self.cint = self.model.addVars(self.trains_dep, vtype=GRB.INTEGER, name="cint")
+            """Define auxiliary variables for the optimization model. To ensure that tasks are only every 15 minutes."""
+            self.th_arr_int = self.model.addVars(self.trains_arr,self.arr_orders, vtype=GRB.INTEGER, name="aint")
+            self.th_dep_int = self.model.addVars(self.trains_dep,self.dep_orders, vtype=GRB.INTEGER, name="bint")
+            # self.cint = self.model.addVars(self.trains_dep, vtype=GRB.INTEGER, name="cint")
 
             #auxiliary varaibles for max voies occupied at any time
             self.rec_max = self.model.addVar(vtype=GRB.INTEGER, name="REC_Max_voies")
@@ -105,6 +109,11 @@ class ModelJalon3:
             self.for_y = self.model.addVars(self.trains, self.minute_slots, vtype=GRB.BINARY, name="for_y")
             self.dep_x = self.model.addVars(self.trains_dep, self.minute_slots, vtype=GRB.BINARY, name="dep_x")
             self.dep_y = self.model.addVars(self.trains_dep, self.minute_slots, vtype=GRB.BINARY, name="dep_y")
+
+            self.th_arr_unavail = self.model.addVars(self.trains_arr, self.arr_orders, self.start_times_chantiers, 2, vtype=GRB.BINARY, name="th_arr_unavail")
+            self.th_dep_unavail = self.model.addVars(self.trains_dep, self.dep_orders, self.start_times_chantiers, 2, vtype=GRB.BINARY, name="th_dep_unavail")
+            print(self.trains_dep, self.dep_orders,self.start_times_chantiers)
+
 
         define_decision_variables(self)
         define_auxiliary_variables(self)
@@ -153,24 +162,43 @@ class ModelJalon3:
                             # Machine DEB
                             self.model.addConstr(self.a[t[0], t[1], t[2]] <= start_time[0] - self.epsilon + self.M * (1 - self.chant_d[t[0], t[1], t[2], 0, start_time[0], chantier]))
                             self.model.addConstr(self.a[t[0], t[1], t[2]] >= end_time[0] + self.epsilon - self.M * self.chant_d[t[0], t[1], t[2], 0, start_time[0], chantier])
+                            for task in self.arr_taches:
+                                self.model.addConstr(self.th_arr[t[0],t[1],t[2],task[0]] + task[1] <= start_time[0] - self.epsilon + self.M * (1 - self.th_arr_unavail[t[0],t[1],t[2],task[0],start_time[0],chantier,0]))
+                                self.model.addConstr(self.th_arr[t[0],t[1],t[2],task[0]] >= end_time[0] + self.epsilon - self.M * self.th_arr_unavail[t[0],t[1],t[2],task[0],start_time[0],chantier,0])
                             if start_time[1] != 0:
                                 self.model.addConstr(self.a[t[0], t[1], t[2]] <= start_time[1] - self.epsilon + self.M * (1 - self.chant_d[t[0], t[1], t[2], 1, start_time[1], chantier]))
                                 self.model.addConstr(self.a[t[0], t[1], t[2]] >= end_time[1] + self.epsilon - self.M * self.chant_d[t[0], t[1], t[2], 1, start_time[1], chantier])
+                                for task in self.arr_taches:
+                                    self.model.addConstr(self.th_arr[t[0],t[1],t[2],task[0]] + task[1] <= start_time[0] - self.epsilon + self.M * (1 - self.th_arr_unavail[t[0],t[1],t[2],task[0],start_time[0],chantier,1]))
+                                    self.model.addConstr(self.th_arr[t[0],t[1],t[2],task[0]] >= end_time[0] + self.epsilon - self.M * self.th_arr_unavail[t[0],t[1],t[2],task[0],start_time[0],chantier,1])
                         
                         elif t[0] == 'DEP' and chantier == 'WPY_FOR':
                             # Machine FOR
                             self.model.addConstr(self.b[t[0], t[1], t[2]] <= start_time[0] - self.epsilon + self.M * (1 - self.chant_e[t[0], t[1], t[2], 0, start_time[0], chantier]))
                             self.model.addConstr(self.b[t[0], t[1], t[2]] >= end_time[0] + self.epsilon - self.M * self.chant_e[t[0], t[1], t[2], 0, start_time[0], chantier])
+                            for task in self.dep_taches[:-1]:
+                                self.model.addConstr(self.th_dep[t[0],t[1],t[2],int(task[0])] + int(task[1]) <= start_time[0] - self.epsilon + self.M * (1 - self.th_dep_unavail[t[0],t[1],t[2],int(task[0]),start_time[0],chantier,0]))
+                                self.model.addConstr(self.th_dep[t[0],t[1],t[2],int(task[0])] >= end_time[0] + self.epsilon - self.M * self.th_dep_unavail[t[0],t[1],t[2],int(task[0]),start_time[0],chantier,0])
                             if start_time[1] != 0:
                                 self.model.addConstr(self.b[t[0], t[1], t[2]] <= start_time[1] - self.epsilon + self.M * (1 - self.chant_e[t[0], t[1], t[2], 1, start_time[1], chantier]))
                                 self.model.addConstr(self.b[t[0], t[1], t[2]] >= end_time[1] + self.epsilon - self.M * self.chant_e[t[0], t[1], t[2], 1, start_time[1], chantier])
+                                for task in self.dep_taches[:-1]:
+                                    self.model.addConstr(self.th_dep[t[0],t[1],t[2],int(task[0])] + int(task[1]) <= start_time[0] - self.epsilon + self.M * (1 - self.th_dep_unavail[t[0],t[1],t[2],int(task[0]),start_time[0],chantier,1]))
+                                    self.model.addConstr(self.th_dep[t[0],t[1],t[2],int(task[0])] >= end_time[0] + self.epsilon - self.M * self.th_dep_unavail[t[0],t[1],t[2],int(task[0]),start_time[0],chantier,1])
                             
                             # Machine DEG
                             self.model.addConstr(self.c[t[0], t[1], t[2]] <= start_time[0] - self.epsilon + self.M * (1 - self.chant_f[t[0], t[1], t[2], 0, start_time[0], chantier]))
                             self.model.addConstr(self.c[t[0], t[1], t[2]] >= end_time[0] + self.epsilon - self.M * self.chant_f[t[0], t[1], t[2], 0, start_time[0], chantier])
+                            task = self.dep_taches[-1]
+                            self.model.addConstr(self.th_dep[t[0],t[1],t[2],int(task[0])] + int(task[1]) <= start_time[0] - self.epsilon + self.M * (1 - self.th_dep_unavail[t[0],t[1],t[2],int(task[0]),start_time[0],chantier,0]))
+                            self.model.addConstr(self.th_dep[t[0],t[1],t[2],int(task[0])] >= end_time[0] + self.epsilon - self.M * self.th_dep_unavail[t[0],t[1],t[2],int(task[0]),start_time[0],chantier,0])
+
                             if start_time[1] != 0:
                                 self.model.addConstr(self.c[t[0], t[1], t[2]] <= start_time[1] - self.epsilon + self.M * (1 - self.chant_f[t[0], t[1], t[2], 1, start_time[1], chantier]))
                                 self.model.addConstr(self.c[t[0], t[1], t[2]] >= end_time[1] + self.epsilon - self.M * self.chant_f[t[0], t[1], t[2], 1, start_time[1], chantier])
+                                task = self.dep_taches[-1]
+                                self.model.addConstr(self.th_dep[t[0],t[1],t[2],int(task[0])] + int(task[1]) <= start_time[0] - self.epsilon + self.M * (1 - self.th_dep_unavail[t[0],t[1],t[2],int(task[0]),start_time[0],chantier,1]))
+                                self.model.addConstr(self.th_dep[t[0],t[1],t[2],int(task[0])] >= end_time[0] + self.epsilon - self.M * self.th_dep_unavail[t[0],t[1],t[2],int(task[0]),start_time[0],chantier,1])
 
             print("Constraint 1.2: Unavailability chantier constraints defined")
                     
@@ -204,21 +232,21 @@ class ModelJalon3:
             print('2: One train processed by a machine constraint defined')
 
 
-        def define_deb_usage_delay_constraint():
-            """Constraint 3: Ensure 'DEB' is not used within 60 minutes after train arrival."""
-            for train in self.trains:
-                if train[0] == 'ARR':
-                    arrival_minute = train[2]
-                    self.model.addConstr(self.a[train[0],train[1],train[2]] >= arrival_minute + 60, name=f"constraint_DEB_{train[1]}")
-            print('3: DEB usage delay constraint defined')
+        # def define_deb_usage_delay_constraint():
+        #     """Constraint 3: Ensure 'DEB' is not used within 60 minutes after train arrival."""
+        #     for train in self.trains:
+        #         if train[0] == 'ARR':
+        #             arrival_minute = train[2]
+        #             self.model.addConstr(self.a[train[0],train[1],train[2]] >= arrival_minute + 60, name=f"constraint_DEB_{train[1]}")
+        #     print('3: DEB usage delay constraint defined')
 
-        def define_deg_time_limit_constraint():
-            """Constraint 4: Ensure 'DEG' is used at most 35 minutes before train departure."""
-            for train in self.trains:
-                if train[0] == 'DEP':
-                    departure_minute = train[2]        
-                    self.model.addConstr(self.c[train[0],train[1],train[2]] <= departure_minute - 35, name=f"constraint_DEG_{train[1]}")
-            print('4: DEG time limit constraint defined')
+        # def define_deg_time_limit_constraint():
+        #     """Constraint 4: Ensure 'DEG' is used at most 35 minutes before train departure."""
+        #     for train in self.trains:
+        #         if train[0] == 'DEP':
+        #             departure_minute = train[2]        
+        #             self.model.addConstr(self.c[train[0],train[1],train[2]] <= departure_minute - 35, name=f"constraint_DEG_{train[1]}")
+        #     print('4: DEG time limit constraint defined')
 
         def define_for_after_deb_constraint():
             """Constraint 5: Ensure 'FOR' starts only after all required 'DEB' processes finish."""
@@ -227,30 +255,38 @@ class ModelJalon3:
                     self.model.addConstr(self.b[dep_train[0], dep_train[1], dep_train[2]] >= self.a[arr_train[0], arr_train[1], arr_train[2]] + 15, name=f"constraint_FOR_DEB_{dep_train[1]}_{arr_train[1]}")
             print('5: FOR after DEB constraint defined')
 
-        def define_for_before_deg_constraint():
-            """Constraint 6: Ensure 'FOR' is used at least 165 minutes before 'DEG'."""
-            for train in self.trains_dep:
-                self.model.addConstr(self.c[train[0],train[1],train[2]] >= self.b[train[0],train[1],train[2]] + 165, name=f"constraint_DEG_FOR_{train[1]}")
-            print('6: FOR before DEG constraint defined')
+        # def define_for_before_deg_constraint():
+        #     """Constraint 6: Ensure 'FOR' is used at least 165 minutes before 'DEG'."""
+        #     for train in self.trains_dep:
+        #         self.model.addConstr(self.c[train[0],train[1],train[2]] >= self.b[train[0],train[1],train[2]] + 165, name=f"constraint_DEG_FOR_{train[1]}")
+        #     print('6: FOR before DEG constraint defined')
         
         def define_task_time_slots_constraint():
             """Constraint 7: Tasks can only begin every 15 mins (h:00, h:15, h:30, h:45)."""
             for train in self.trains_arr:
-                self.model.addConstr(
-                    self.a[train[0], train[1], train[2]] == 15 * self.aint[train[0], train[1], train[2]],
-                    name=f'constraint_creneaux_{train}'
-                )
-
+                for task in self.arr_taches:
+                    self.model.addConstr(
+                        self.th_arr[train[0], train[1], train[2], int(task[0])] == 15 * self.th_arr_int[train[0], train[1], train[2], int(task[0])],
+                        name=f'constraint_creneaux_{train}'
+                    )
+                # self.model.addConstr(
+                #     self.th_arr[train[0], train[1], train[2],] == 15 * self.aint[train[0], train[1], train[2]],
+                #     name=f'constraint_creneaux_{train}'
+                # )
             for train in self.trains_dep:
-                self.model.addConstr(
-                    self.b[train[0], train[1], train[2]] == 15 * self.bint[train[0], train[1], train[2]],
-                    name=f'constraint_creneaux_{train}'
-                )
-                self.model.addConstr(
-                    self.c[train[0], train[1], train[2]] == 15 * self.cint[train[0], train[1], train[2]],
-                    name=f'constraint_creneaux_{train}'
-                )
-
+                for task in self.dep_taches:
+                    self.model.addConstr(
+                        self.th_dep[train[0], train[1], train[2], int(task[0])] == 15 * self.th_dep_int[train[0], train[1], train[2], int(task[0])],
+                        name=f'constraint_creneaux_{train}'
+                    )
+                # self.model.addConstr(
+                #     self.b[train[0], train[1], train[2]] == 15 * self.bint[train[0], train[1], train[2]],
+                #     name=f'constraint_creneaux_{train}'
+                # )
+                # self.model.addConstr(
+                #     self.c[train[0], train[1], train[2]] == 15 * self.cint[train[0], train[1], train[2]],
+                #     name=f'constraint_creneaux_{train}'
+                # )
             print("Constraint 7: Task time slots defined.")
 
         def define_REC_occupation_relation_constraints(self):
@@ -372,7 +408,7 @@ class ModelJalon3:
                     )
             print("8.3: Occupation variables DEP related to start time defined.")
         
-        def max_voies_constraint():
+        def max_voies_constraint(self):
             """Constraint 9: Ensure that no more than max_voies are used at any time."""
             for minute in self.minute_slots:
                 self.model.addConstr(
@@ -389,7 +425,7 @@ class ModelJalon3:
                 )
             print("9: Maximum voies constraint defined.")
 
-        def calculate_max_voies_used():
+        def calculate_max_voies_used(self):
             """Constraint 10: Calculate the maximum number of voies used."""
             for minute in self.minute_slots:
                 self.model.addConstr(
@@ -405,21 +441,93 @@ class ModelJalon3:
                     name=f"dep_max_constraint_{minute}"
                 )
             print("10: Maximum voies used calculated.")
-                
+        
+
+        def define_arr_tri_constraint():
+            """Constraint 11: Ensure 'prép tri' starts more than 15 minutes after reception"""
+            for train in self.trains_arr:
+                self.model.addConstr(self.th_arr[train[0],train[1],train[2],2] >= self.th_arr[train[0], train[1], train[2],1] + self.arr_durees[0], name=f"constraint_arr_tri_{train}")
+            print('11: Reception before Prep tri constraint defined')
+
+        def define_tri_deb_constraint():
+            """Constraint 12: Ensure DEB starts at least 45 minutes after tri."""
+            for train in self.trains_arr:
+                self.model.addConstr(self.th_arr[train[0],train[1],train[2],3] >= self.th_arr[train[0], train[1], train[2],2] + self.arr_durees[1], name=f"constraint_tri_deb_{train}")
+            print('12: Tri before DEB constraint defined')
+        
+        def define_DEB_parallel_constraint():
+            """Constraint 13: Ensure DEB human and machine parellelisation."""
+            for train in self.trains_arr:
+                self.model.addConstr(self.th_arr[train[0],train[1],train[2],3] == self.a[train[0], train[1], train[2]], name=f"constraint_deb_parallel_{train}")
+            print('13: DEB parallel constraint defined')
+
+        def define_FOR_parallel_constraint():
+            """Constraint 14: Ensure FOR human and machine parellelisation."""
+            for train in self.trains_dep:
+                self.model.addConstr(self.th_dep[train[0],train[1],train[2],1] == self.b[train[0], train[1], train[2]], name=f"constraint_for_parallel_{train}")
+            print('14: FOR parallel constraint defined')
+
+        def define_attelage_FOR_constraint():
+            """Constraint 15: Ensure attelage véhicules takes place at least 15 minutes after FOR."""
+            for train in self.trains_dep:
+                self.model.addConstr(self.th_dep[train[0],train[1],train[2],2] >= self.th_dep[train[0], train[1], train[2],1] + self.dep_durees[0], name=f"constraint_attelage_FOR_{train}")
+            print('15: Attelage FOR constraint defined')
+        
+        def define_DEG_attelage_constraint():
+            """Constraint 16: Ensure DEG takes place at least 150 minutes after attelage véhicules."""
+            for train in self.trains_dep:
+                self.model.addConstr(self.th_dep[train[0],train[1],train[2],3] >= self.th_dep[train[0], train[1], train[2],2] + self.dep_durees[1], name=f"constraint_DEG_attelage_{train}")
+            print('16: DEG attelage constraint defined')
+        
+        def define_DEG_parallel_constraint():
+            """Constraint 17: Ensure DEG human and machine parellelisation."""
+            for train in self.trains_dep:
+                self.model.addConstr(self.th_dep[train[0],train[1],train[2],3] == self.c[train[0], train[1], train[2]], name=f"constraint_deg_parallel_{train}")
+            print('17: DEG parallel constraint defined')
+        
+        def define_frein_DEG_constraint():
+            """Constraint 18: Ensure essai frein takes place at least 15 minutes after DEG."""
+            for train in self.trains_dep:
+                self.model.addConstr(self.th_dep[train[0],train[1],train[2],4] >= self.th_dep[train[0], train[1], train[2],3] + self.dep_durees[2], name=f"constraint_frein_DEG_{train}")
+            print('18: Frein DEG constraint defined')
+
+        def define_arr_start_constraint():
+            """Constraint 19: Ensure arrivée réception starts after train arrival."""
+            for train in self.trains_arr:
+                self.model.addConstr(self.th_arr[train[0],train[1],train[2],1] >= train[2], name=f"constraint_arr_start_{train}")
+            print('19: Reception after arrival constraint defined')
+        
+        def define_dep_final_constraint():
+            """Constraint 20: Ensure essai frein finishes before train departure."""
+            for train in self.trains_dep:
+                self.model.addConstr(self.th_dep[train[0],train[1],train[2],4] + self.dep_durees[3] <= train[2], name=f"constraint_dep_finish_{train}")
+            print('19: Frein before departure constraint defined')
   
         define_unavailability_machines_constraints()
-        max_voies_constraint()
-        calculate_max_voies_used()
+        define_unavailability_chantier_constraints()
+        define_single_train_per_machine_constraints()
+        # define_deb_usage_delay_constraint()
+        # define_deg_time_limit_constraint()
+        define_for_after_deb_constraint()
+        # define_for_before_deg_constraint()
+        define_task_time_slots_constraint()
+        define_arr_tri_constraint()
+        define_tri_deb_constraint()
+        define_DEB_parallel_constraint()
+        define_FOR_parallel_constraint()
+        define_attelage_FOR_constraint()
+        define_DEG_attelage_constraint()
+        define_DEG_parallel_constraint()
+        define_frein_DEG_constraint()
+        define_arr_start_constraint()
+        define_dep_final_constraint()
+        max_voies_constraint(self)
+        calculate_max_voies_used(self)
         define_REC_occupation_relation_constraints(self)
         define_FOR_occupation_relation_constraints(self)
         define_DEP_occupation_relation_constraints(self)
-        define_unavailability_chantier_constraints()
-        define_single_train_per_machine_constraints()
-        define_deb_usage_delay_constraint()
-        define_deg_time_limit_constraint()
-        define_for_after_deb_constraint()
-        define_for_before_deg_constraint()
-        define_task_time_slots_constraint()
+        
+
         
         
         
@@ -491,16 +599,49 @@ class ModelJalon3:
             }
             ]
 
+            results_taches_humaines = []
+            for train in self.trains:
+                if train[0] == 'ARR':
+                    for task in self.arr_taches:
+                        jour, horaire = minute_to_date2(self.model.getVarByName(f'th_arr[{train[0]},{train[1]},{train[2]},{task[0]}]').X, self.j1)
+                        results_taches_humaines.append({
+                            'Id tâche': f'{self.machines[0]}_{train[1]}_{jour}',
+                            'Type de tâche': task,
+                            'Jour': jour,
+                            'Heure début': horaire,
+                            'Durée': task[1],
+                            'Sillon': train[1]
+                        })
+                elif train[0] == 'DEP':
+                    for task in self.dep_taches:
+                        jour, horaire = minute_to_date2(self.model.getVarByName(f'th_dep[{train[0]},{train[1]},{train[2]},{task[0]}]').X, self.j1)
+                        results_taches_humaines.append({
+                            'Id tâche': f'{self.machines[1]}_{train[1]}_{jour}',
+                            'Type de tâche': task,
+                            'Jour': jour,
+                            'Heure début': horaire,
+                            'Durée': task[1],
+                            'Sillon': train[1]
+                        })
+
 
             # Create a DataFrame from the results
             df_results = pd.DataFrame(results)
             df_voies = pd.DataFrame(voies,index =self.chantiers)
-            sheet_names = ["Taches machine","Voies utilisation"]
+            df_results_th = pd.DataFrame(results_taches_humaines)
+            sheet_names = ["Taches machine","Voies utilisation","Taches humaines"]
             file_name = Path(self.fichier).stem
-            #writer = pd.ExcelWriter(f'{self.results_folder_save_path}/results_{file_name}.xlsx')
-            df_results.to_excel(f'{self.results_folder_save_path}/results_{file_name}.xlsx',sheet_name=sheet_names[0], index=False)
-            df_voies.to_excel(f'{self.results_folder_save_path}/results_{file_name}_voies.xlsx',sheet_name=sheet_names[1], index=True)
-            #df_voies.to_excel(writer, sheet_name=sheet_names[1], index=False)
+            # #writer = pd.ExcelWriter(f'{self.results_folder_save_path}/results_{file_name}.xlsx')
+            # df_results.to_excel(f'{self.results_folder_save_path}/results_{file_name}.xlsx',sheet_name=sheet_names[0], index=False)
+            # df_voies.to_excel(f'{self.results_folder_save_path}/results_{file_name}_voies.xlsx',sheet_name=sheet_names[1], index=True)
+            # df_results_th.to_excel(f'{self.results_folder_save_path}/results_{file_name}.xlsx',sheet_name=sheet_names[2], index=False)
+            # #df_voies.to_excel(writer, sheet_name=sheet_names[1], index=False)
+
+            # Save DataFrames to different sheets in the same Excel file
+            with pd.ExcelWriter(f'{self.results_folder_save_path}/results_{file_name}.xlsx') as writer:
+                df_results.to_excel(writer, sheet_name=sheet_names[0], index=False)
+                df_voies.to_excel(writer, sheet_name=sheet_names[1], index=True)
+                df_results_th.to_excel(writer, sheet_name=sheet_names[2], index=False)
             print(f'Results saved to {self.results_folder_save_path}/results_{file_name}.xlsx')
 
             return df_results
