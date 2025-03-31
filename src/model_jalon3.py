@@ -5,6 +5,8 @@ from utils.utils_data import (
     format_trains, add_time_reference, unavailable_machines, correspondance_for_depart, unavailable_chantiers, find_max_voies, format_taches_humaines
 )
 from utils.utils_date import minute_to_date2
+from utils.display_gantt import display_gantt
+from utils.display_sankey import display_sankey
 from pathlib import Path
 from dotenv import load_dotenv
 import os
@@ -15,7 +17,7 @@ class ModelJalon3:
         """Initialize the optimization model."""
         self.start_program_time = tme.time()
         load_dotenv(override=True)
-        self.model_name = os.getenv('MODEL_JALON1_NAME')
+        self.model_name = os.getenv('MODEL_NAME')
         self.model_save_path = os.getenv('MODEL_SAVE_PATH')
         self.results_folder_save_path = os.getenv('RESULTS_FOLDER_SAVE_PATH')
         self.fichier = os.getenv('FILE_INSTANCE')
@@ -544,76 +546,6 @@ class ModelJalon3:
                             continue
                         elif roulement == 'roulement_reception_depart' and (train[0] == 'DEP' and (order == 1 or order == 2 or order == 3)):
                             continue
-<<<<<<< HEAD
-                        if train[0] == 'ARR':
-                            task = self.th_arr[train[0],train[1],train[2],order]
-                        elif train[0] == 'DEP':
-                            task = self.th_dep[train[0],train[1],train[2],order]
-                        envelope_tache = self.envelope_taches_REC_DEP[i,train[0],train[1],train[2],order]
-                        # Chantier REC
-                        # start_time*envelope_tache <= task
-                        self.model.addConstr(
-                            start_time*envelope_tache <= task,
-                            name=f"roul_rec_dep_task_after_{start_time}_{train}_{order}"
-                        )
-                        # task <= end_time*envelope_tache + M(1-envelope_tache)
-                        self.model.addConstr(
-                            task <= (end_time)*envelope_tache + self.M*(1-envelope_tache),
-                            name=f"roul_rec_dep_task_before_{end_time}_{train}_{order}"
-                        )
-                        # task-start_time <= M*x
-                        self.model.addConstr(
-                            (task - start_time) <= self.M*self.envelope_taches_REC_DEP_x[i,train[0],train[1],train[2],order],
-                            name=f"roul_rec_dep_x_{train}_{order}"
-                        )
-                        # end_time-task <= M*y
-                        self.model.addConstr(
-                            end_time - task <= self.M*self.envelope_taches_REC_DEP_y[i,train[0],train[1],train[2],order],
-                            name=f"roul_rec_dep_y_{train}_{order}"
-                        )
-                        # envelope_tache >= x+y-1
-                        self.model.addConstr(
-                            envelope_tache >= self.envelope_taches_REC_DEP_x[i,train[0],train[1],train[2],order] + self.envelope_taches_REC_DEP_y[i,train[0],train[1],train[2],order] - 1,
-                            name=f"roul_rec_dep_envelope_{start_time}_{train}_{order}"
-                        )
-            print("21.4: Envelope taches roulement_reception_depart relation constraints defined.")
-
-        def define_envelope_taches_FOR_DEP_relation_constraints(self):
-            """Constraint 21.5: Assign tasks to shifts for roulement_formation_depart. If (start of envelope) <= t (start of task) <= (end of envelope), then envelope_tache = 1."""
-            for i, (start_time,end_time) in enumerate(self.envelopes_agents['roulement_formation_depart']):
-                for train in self.trains_dep:
-                    for order in self.dep_orders:
-                        order = int(order)
-                        task = self.th_dep[train[0],train[1],train[2],order]
-                        envelope_tache = self.envelope_taches_FOR_DEP[i,train[0],train[1],train[2],order]
-                        # Chantier REC
-                        # start_time*envelope_tache <= task
-                        self.model.addConstr(
-                            start_time*envelope_tache <= task,
-                            name=f"roul_for_dep_task_after_{start_time}_{train}_{order}"
-                        )
-                        # task <= end_time*envelope_tache + M(1-envelope_tache)
-                        self.model.addConstr(
-                            task <= (end_time)*envelope_tache + self.M*(1-envelope_tache),
-                            name=f"roul_for_dep_task_before_{end_time}_{train}_{order}"
-                        )
-                        # task-start_time <= M*x
-                        self.model.addConstr(
-                            (task - start_time) <= self.M*self.envelope_taches_FOR_DEP_x[i,train[0],train[1],train[2],order],
-                            name=f"roul_for_dep_x_{train}_{order}"
-                        )
-                        # end_time-task <= M*y
-                        self.model.addConstr(
-                            end_time - task <= self.M*self.envelope_taches_FOR_DEP_y[i,train[0],train[1],train[2],order],
-                            name=f"roul_for_dep_y_{train}_{order}"
-                        )
-                        # envelope_tache >= x+y-1
-                        self.model.addConstr(
-                            envelope_tache >= self.envelope_taches_FOR_DEP_x[i,train[0],train[1],train[2],order] + self.envelope_taches_FOR_DEP_y[i,train[0],train[1],train[2],order] - 1,
-                            name=f"roul_for_dep_envelope_{start_time}_{train}_{order}"
-                        )
-            print("21.5: Envelope taches roulement_formation_depart relation constraints defined.")
-=======
                         elif roulement == 'roulement_reception_depart' and train[0] == 'ARR':
                             th = self.th_arr
                             duree_set = self.arr_durees
@@ -674,7 +606,6 @@ class ModelJalon3:
 
             print(f'21.2: Task assignment done. {num_constraints_added} constraints added.')
 
->>>>>>> 4c5f90c (jalon 3 - enfin)
         
         def define_task_in_progress_rec_relation_constraint(self):
             """22.1: REC For every minute and task, set task_in_progress to 1 if task is in progress at that minute."""  
@@ -1139,6 +1070,7 @@ class ModelJalon3:
 
             sheet_names = ["Taches machine", "Voies utilisation", "Taches humaines", "Roulements", "Nb Journees activees"]
             file_name = Path(self.fichier).stem
+            results_file_path = f'{self.results_folder_save_path}/results_{file_name}.xlsx'
 
             # Save DataFrames to different sheets in the same Excel file
             with pd.ExcelWriter(f'{self.results_folder_save_path}/results_{file_name}.xlsx') as writer:
@@ -1147,9 +1079,12 @@ class ModelJalon3:
                 df_results_th.to_excel(writer, sheet_name=sheet_names[2], index=False)
                 df_results_roulements.to_excel(writer, sheet_name=sheet_names[3], index=False)
                 df_results_journees.to_excel(writer, sheet_name=sheet_names[4], index=True)
-                        
+            
             print(f'Results saved to {self.results_folder_save_path}/results_{file_name}.xlsx')
-
+            gantt_image_save_path = f"{self.results_folder_save_path}/gantt_{file_name}_jalon2.png"
+            sankey_image_save_path = f"{self.results_folder_save_path}/sankey_{file_name}_jalon2.png"
+            display_gantt(results_file_path, gantt_image_save_path)
+            display_sankey(self.fichier, sankey_image_save_path)
             return df_results
         else:
             print("No optimal solution found")
