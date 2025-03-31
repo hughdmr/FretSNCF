@@ -1,11 +1,7 @@
 import pandas as pd
 import numpy as np
 from datetime import datetime
-<<<<<<< HEAD
-from utils.utils_date import time_to_minutes_2, time_to_minutes, minute_to_date
-=======
 from utils.utils_date import time_to_minutes_2, time_to_minutes, minute_to_date, minute_to_date2, time_to_minutes_3
->>>>>>> dbcfa75 (jalon3_defini)
 
 def load_data(fichier):
     """Load the data from the Excel file"""
@@ -34,7 +30,7 @@ def calculate_delta_days(sillons_depart_df,sillons_arrivee_df):
         j1 = min_jour
 
     diff = jfin - j1
-    jours = diff.days+1
+    jours = diff.days
     first_day = j1.weekday()
     return j1, jours, first_day
 

@@ -3,7 +3,7 @@ import itertools
 
 import plotly.express as px
 import pandas as pd
-from display_track import displays_track_occupation
+# from display_track import displays_track_occupation
 
 class ResultColumnNames:
     TASK_ID = "Id tâche"
