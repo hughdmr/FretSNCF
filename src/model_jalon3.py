@@ -1081,8 +1081,8 @@ class ModelJalon3:
                 df_results_journees.to_excel(writer, sheet_name=sheet_names[4], index=True)
             
             print(f'Results saved to {self.results_folder_save_path}/results_{file_name}.xlsx')
-            gantt_image_save_path = f"{self.results_folder_save_path}/gantt_{file_name}_jalon2.png"
-            sankey_image_save_path = f"{self.results_folder_save_path}/sankey_{file_name}_jalon2.png"
+            gantt_image_save_path = f"{self.results_folder_save_path}/gantt_{file_name}.png"
+            sankey_image_save_path = f"{self.results_folder_save_path}/sankey_{file_name}.png"
             display_gantt(results_file_path, gantt_image_save_path)
             display_sankey(self.fichier, sankey_image_save_path)
             return df_results
