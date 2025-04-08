@@ -9,9 +9,6 @@ In this project, we aim to model the management of a freight classification yard
 ## **Contributors**
 
 - Angus Chisholm
-- Thomas Desforges
-- Marin d'Hébrail
-- Tanguy Garnier
 - Hugues d'Hardemare
 
 ## **Repository structure**
